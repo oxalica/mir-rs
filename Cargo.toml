@@ -2,13 +2,20 @@
 name = "mir-rs"
 version = "0.1.0"
 edition = "2021"
+description = "FFI bindings to MIR Project (https://github.com/vnmakarov/mir)"
+keywords = ["bindings", "mir", "compiler", "jit"]
+categories = ["compilers", "api-bindings"]
+license = "MIT"
+repository = "https://github.com/oxalica/mir-rs"
+documentation = "https://docs.rs/mir-rs"
+exclude = ["/mir/*-tests", "/mir/*-benchmarks"] # Keep the package small.
 
 [lib]
 name = "mir"
 
 [dependencies]
 libc = "0.2.121"
-mir-sys = { path = "./mir-sys" }
+mir-sys = { path = "./mir-sys", version = "0.1" }
 
 [workspace]
 

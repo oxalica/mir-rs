@@ -521,21 +521,37 @@ pub struct MIR_code_reloc_t {
     pub value: *const c_void,
 }
 
-#[allow(non_snake_case)]
-pub unsafe fn MIR_init() -> MIR_context_t {
-    let lib_version = _MIR_get_api_version();
-    if MIR_API_VERSION != lib_version {
-        panic!(
-            "mir library version mismatch, binding: {}, library: {}",
-            MIR_API_VERSION, lib_version
-        );
-    }
-    _MIR_init()
+#[repr(C)]
+pub struct c2mir_macro_command {
+    pub def_p: c_int,
+    pub name: *const c_char,
+    pub def: *const c_char,
+}
+
+#[repr(C)]
+pub struct c2mir_options {
+    message_file: *mut FILE,
+    debug_p: c_int,
+    verbose_p: c_int,
+    ignore_warnings_p: c_int,
+    no_prepro_p: c_int,
+    prepro_only_p: c_int,
+    syntax_only_p: c_int,
+    pedantic_p: c_int,
+    asm_p: c_int,
+    object_p: c_int,
+    module_num: size_t,
+    prepro_output_file: *mut FILE,
+    output_file_name: *const c_char,
+    macro_commands_num: size_t,
+    include_dirs_num: size_t,
+    macro_commands: *mut c2mir_macro_command,
+    include_dirs: *mut *const c_char,
 }
 
 extern "C" {
-    pub fn _MIR_get_api_version() -> f64;
-    pub fn _MIR_init() -> MIR_context_t;
+    fn _MIR_get_api_version() -> f64;
+    fn _MIR_init() -> MIR_context_t;
 
     pub fn MIR_finish(ctx: MIR_context_t);
     pub fn MIR_new_module(ctx: MIR_context_t, name: *const c_char) -> MIR_module_t;
@@ -778,4 +794,23 @@ extern "C" {
     pub fn MIR_set_parallel_gen_interface(ctx: MIR_context_t, func_item: MIR_item_t);
     pub fn MIR_set_lazy_gen_interface(ctx: MIR_context_t, func_item: MIR_item_t);
     pub fn MIR_gen_finish(ctx: MIR_context_t);
+
+    pub fn c2mir_init(ctx: MIR_context_t);
+    pub fn c2mir_finish(ctx: MIR_context_t);
+    pub fn c2mir_compile(
+        ctx: MIR_context_t,
+        ops: *mut c2mir_options,
+        getc_func: Option<extern "C" fn(*mut c_void) -> c_int>,
+        getc_data: *mut c_void,
+        source_name: *const c_char,
+        output_file: *mut FILE,
+    );
+}
+
+#[allow(non_snake_case)]
+#[inline(always)]
+pub unsafe fn MIR_init() -> MIR_context_t {
+    // We lock the C source in tree, so version checking is not necessary.
+    debug_assert_eq!(MIR_API_VERSION, _MIR_get_api_version());
+    _MIR_init()
 }

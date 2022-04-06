@@ -14,4 +14,3 @@ cc = "1.0.73"
 [features]
 default = []
 parallel-gen = []
-c2mir = []

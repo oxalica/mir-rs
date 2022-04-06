@@ -1,0 +1,9 @@
+[package]
+name = "mir-rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+mir-sys = { path = "./mir-sys" }
+
+[workspace]

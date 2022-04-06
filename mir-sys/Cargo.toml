@@ -1,0 +1,17 @@
+[package]
+name = "mir-sys"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+exclude = ["/mir/*-tests", "/mir/*-benchmarks"]
+
+[dependencies]
+libc = "0.2.121"
+
+[build-dependencies]
+cc = "1.0.73"
+
+[features]
+default = []
+parallel-gen = []
+c2mir = []

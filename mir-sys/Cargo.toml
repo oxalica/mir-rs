@@ -12,12 +12,14 @@ repository = "https://github.com/oxalica/mir-rs"
 documentation = "https://docs.rs/mir-sys"
 exclude = ["/mir/*-tests", "/mir/*-benchmarks"] # Keep the package small.
 
+[features]
+default = ["bundled"]
+bundled = []
+__internal_generate_sys = ["dep:bindgen"]
+
 [dependencies]
 libc = "0.2.121"
 
 [build-dependencies]
 cc = "1.0.73"
-
-[features]
-default = []
-parallel-gen = []
+bindgen = { version = "0.71.0", optional = true }

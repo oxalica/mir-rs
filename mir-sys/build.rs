@@ -20,6 +20,7 @@ fn main() {
 
     // See: <https://github.com/vnmakarov/mir/blob/v1.0.0/GNUmakefile#L61>
     build
+        .warnings(false)
         .define("GITCOMMIT", GIT_COMMIT)
         .pic(true)
         .flag("-std=gnu11")

@@ -27,6 +27,8 @@ fn main() {
         .flag("-fsigned-char")
         .flag_if_supported("-fno-tree-sra")
         .flag_if_supported("-fno-ipa-cp-clone")
+        // Force long double == double to avoid ABI hazard.
+        .flag("-mlong-double-64")
         .include("mir")
         .file("mir/mir.c")
         .file("mir/mir-gen.c")
@@ -56,11 +58,11 @@ fn generate() {
         // No va_list support.
         .blocklist_function("MIR_interp_arr_varg")
         .blocklist_type(".*va_list.*")
-        // Fix f128 (long double) FFI-safety.
-        .raw_line("#[derive(Debug, Clone, Copy)] #[repr(C, align(16))] pub struct c_longdouble([u64; 2]); use c_longdouble as u128;")
         // Manual tweaks.
-        .blocklist_type("MIR_imm_t|MIR_mem_t|MIR_op_t.*|MIR_insn|MIR_val_t")
-        .raw_line("use super::{MIR_op_t, MIR_insn, MIR_val_t};")
+        .blocklist_type("MIR_mem_t|MIR_op_t.*|MIR_insn")
+        .raw_line("use super::{MIR_op_t, MIR_insn};")
+        // See above.
+        .clang_arg("-mlong-double-64")
         .prepend_enum_name(false)
         .layout_tests(false)
         .generate()
@@ -75,6 +77,8 @@ fn generate() {
         .allowlist_function("MIR_gen.*|MIR_set.*gen_interface")
         .raw_line("use super::*;")
         .raw_line("use libc::FILE;")
+        // See above.
+        .clang_arg("-mlong-double-64")
         .generate()
         .expect("failed to bindgen mir-gen.h")
         .write_to_file("src/bindings_gen.rs")

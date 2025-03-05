@@ -3,7 +3,12 @@
 #[rustfmt::skip]
 mod bindings;
 
+#[rustfmt::skip]
+mod bindings_gen;
+
 pub use bindings::*;
+
+pub use bindings_gen::*;
 
 #[derive(Copy, Clone)]
 #[repr(C, align(16))]

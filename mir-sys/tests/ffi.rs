@@ -91,6 +91,36 @@ fn add_interp() {
         let args = [MIR_val_t { i: 40 }, MIR_val_t { i: 2 }];
         MIR_interp_arr(ctx, func_item, &mut ret, 2, args.as_ptr().cast_mut());
         assert_eq!(ret.i, 42);
+    }
+}
+
+#[test]
+fn add_gen() {
+    unsafe {
+        let ctx = MIR_init();
+        let module = MIR_new_module(ctx, c"module".as_ptr());
+        let func_item = gen_add_i64(ctx, c"add");
+        MIR_finish_module(ctx);
+
+        MIR_gen_init(ctx);
+        MIR_gen_set_optimize_level(ctx, 3);
+
+        // Do not enable assembly dumping (level=2) which requires gcc, objcopy and objdump.
+        // It will also print directly into stderr.
+        MIR_gen_set_debug_level(ctx, 1);
+        let (func_ptr, dbg_output) = collect_output(|fout| {
+            MIR_gen_set_debug_file(ctx, fout);
+
+            // Link modules.
+            MIR_load_module(ctx, module);
+            MIR_link(ctx, Some(MIR_set_gen_interface), None);
+
+            let func_ptr = MIR_gen(ctx, func_item);
+            std::mem::transmute::<*mut libc::c_void, extern "C" fn(i64, i64) -> i64>(func_ptr)
+        });
+        eprintln!("{dbg_output}");
+        assert_eq!(func_ptr(40, 2), 42);
+        MIR_gen_finish(ctx);
 
         MIR_finish(ctx);
     }

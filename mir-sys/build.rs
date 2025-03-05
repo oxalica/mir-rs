@@ -13,7 +13,7 @@ fn main() {
     let mut build = cc::Build::new();
 
     if env::var("DEBUG").unwrap() == "false" {
-        build.define("NDEBUG", "1");
+        build.define("NDEBUG", "1").define("MIR_NO_GEN_DEBUG", "1");
     }
 
     // See: <https://github.com/vnmakarov/mir/blob/v1.0.0/GNUmakefile#L61>
@@ -34,17 +34,13 @@ fn main() {
     println!("cargo::rustc-link-lib=dl");
 
     #[cfg(feature = "__internal_generate_sys")]
-    generate("src/bindings.rs");
+    generate();
 }
 
 #[cfg(feature = "__internal_generate_sys")]
-fn generate(out_path: &str) {
-    const HEADER_CONTENT: &str = r#"
-#include "mir/mir.h"
-"#;
-
+fn generate() {
     bindgen::Builder::default()
-        .header_contents("wrapper.h", HEADER_CONTENT)
+        .header_contents("wrapper.h", r#"#include "mir/mir.h""#)
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         // Hide private funcs and types: <https://github.com/vnmakarov/mir/blob/v1.0.0/mir.h#L637>
         .allowlist_var("MIR_.*")
@@ -66,7 +62,19 @@ fn generate(out_path: &str) {
         .prepend_enum_name(false)
         .layout_tests(false)
         .generate()
-        .expect("failed to bindgen")
-        .write_to_file(out_path)
+        .expect("failed to bindgen mir.h")
+        .write_to_file("src/bindings.rs")
+        .expect("failed to write bindgen output");
+
+    bindgen::Builder::default()
+        .header_contents("wrapper.h", r#"#include "mir/mir-gen.h""#)
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+        .blocklist_type(".*")
+        .allowlist_function("MIR_gen.*|MIR_set.*gen_interface")
+        .raw_line("use super::*;")
+        .raw_line("use libc::FILE;")
+        .generate()
+        .expect("failed to bindgen mir-gen.h")
+        .write_to_file("src/bindings_gen.rs")
         .expect("failed to write bindgen output");
 }

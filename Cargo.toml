@@ -14,10 +14,6 @@ exclude = ["/mir/*-tests", "/mir/*-benchmarks"] # Keep the package small.
 name = "mir"
 
 [dependencies]
-libc = "0.2.121"
 mir-sys = { path = "./mir-sys", version = "0.1" }
 
 [workspace]
-
-[dev-dependencies]
-expect-test = "1.2.2"

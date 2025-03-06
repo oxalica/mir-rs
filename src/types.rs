@@ -483,6 +483,11 @@ macro_rules! def_simple_insn {
             build_insn(self, $code, [dst.into(), $($src.into()),*]);
         }
     };
+    (__impl (_ $(, $src:ident)*) $name:ident $code:expr) => {
+        fn $name<'o>(self, $($src: impl IntoOperand<'o>),*) {
+            build_insn(self, $code, [$($src.into()),*]);
+        }
+    };
     (
         $args:tt;
         $($name:ident $(($code:expr))?),*
@@ -505,6 +510,29 @@ macro_rules! def_jump_insn {
         $(,)?
     ) => {
         $(def_jump_insn!(__impl $args $name $($code)?);)*
+    };
+}
+
+macro_rules! def_call_insn {
+    ($($name:ident),* $(,)?) => {
+        $(
+            fn $name<'o>(
+                self,
+                proto: ProtoItemRef<'o>,
+                func: impl IntoOperand<'o>,
+                results: impl IntoIterator<Item = Operand<'o>>,
+                args: impl IntoIterator<Item = Operand<'o>>,
+            ) {
+                build_insn(
+                    self,
+                    paste!(ffi::[<MIR_ $name:upper>]),
+                    [proto.into(), func.into()]
+                        .into_iter()
+                        .chain(results)
+                        .chain(args),
+                );
+            }
+        )*
     };
 }
 
@@ -563,7 +591,8 @@ pub trait InsnBuilderExt<'func>: InsnBuilder<'func> {
     }
 
     // Jumps.
-    def_jump_insn!((label); jmp, bo, bno, ubo, ubno); // jmpi, laddr
+    def_jump_insn!((label); jmp, bo, bno, ubo, ubno);
+    def_simple_insn!((_, label_op); jmpi);
     def_jump_insn!((label, v); bt, bts, bf, bfs);
     def_jump_insn! {
         (label, a, b);
@@ -574,68 +603,25 @@ pub trait InsnBuilderExt<'func>: InsnBuilder<'func> {
         bgt, bgts, ubgt, ubgts, fbgt, dbgt, // ldbgt
         bge, bges, ubge, ubges, fbge, dbge, // ldbge
     }
-
-    // Call.
-    fn call<'o>(
-        self,
-        proto: ProtoItemRef<'o>,
-        func: impl IntoOperand<'o>,
-        results: impl IntoIterator<Item = Operand<'o>>,
-        args: impl IntoIterator<Item = Operand<'o>>,
-    ) {
-        build_insn(
-            self,
-            ffi::MIR_CALL,
-            [proto.into(), func.into()]
-                .into_iter()
-                .chain(results)
-                .chain(args),
-        );
-    }
-    fn inline<'o>(
-        self,
-        proto: ProtoItemRef<'o>,
-        func: impl IntoOperand<'o>,
-        results: impl IntoIterator<Item = Operand<'o>>,
-        args: impl IntoIterator<Item = Operand<'o>>,
-    ) {
-        build_insn(
-            self,
-            ffi::MIR_INLINE,
-            [proto.into(), func.into()]
-                .into_iter()
-                .chain(results)
-                .chain(args),
-        );
-    }
-    fn jcall<'o>(
-        self,
-        proto: ProtoItemRef<'o>,
-        func: impl IntoOperand<'o>,
-        results: impl IntoIterator<Item = Operand<'o>>,
-        args: impl IntoIterator<Item = Operand<'o>>,
-    ) {
-        build_insn(
-            self,
-            ffi::MIR_JCALL,
-            [proto.into(), func.into()]
-                .into_iter()
-                .chain(results)
-                .chain(args),
-        );
+    fn laddr<'o>(self, dst: impl IntoOutOperand<'o>, label: Label<'_>) {
+        build_insn(self, ffi::MIR_LADDR, [dst.into(), label.into()])
     }
 
-    // Return.
-    fn ret<'o>(self, v: impl IntoOperand<'o>) {
-        build_insn(self, ffi::MIR_RET, [v.into()]);
-    }
-    fn jret<'o>(self, v: impl IntoOperand<'o>) {
-        build_insn(self, ffi::MIR_JRET, [v.into()]);
-    }
+    // Call and return.
+    def_call_insn!(call, inline, jcall);
+    def_simple_insn!((_, v); ret, jret);
 
     // Function frame.
     def_simple_insn!((dst, len); alloca);
-    // va_arg, va_block_arg, va_start, va_end
+    def_simple_insn!((_, va_list); va_start, va_end);
+    def_simple_insn!((dst, va_list, size, block_type); va_block_arg);
+    fn va_arg<'o>(self, dst: impl IntoOutOperand<'o>, va_list: impl IntoOperand<'o>, mem: MemOp) {
+        build_insn(
+            self,
+            ffi::MIR_VA_ARG,
+            [dst.into(), va_list.into(), mem.into()],
+        );
+    }
 
     // Label.
     fn label(self, label: Label<'_>) {

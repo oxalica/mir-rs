@@ -1,10 +1,8 @@
 use std::cell::Cell;
-use std::ffi::{c_char, c_int, c_void};
+use std::ffi::{c_int, c_void};
 use std::fmt;
-use std::ptr::NonNull;
 
-use libc::size_t;
-
+use crate::mem_file::MemoryFile;
 use crate::{MirContext, MirFuncItem, ffi};
 
 pub struct MirGenContext {
@@ -37,16 +35,16 @@ impl MirGenContext {
         let file = MemoryFile::new();
         unsafe {
             ffi::MIR_gen_set_debug_level(self.ctx.ctx.as_ptr(), level);
-            ffi::MIR_gen_set_debug_file(self.ctx.ctx.as_ptr(), file.file.as_ptr());
+            ffi::MIR_gen_set_debug_file(self.ctx.ctx.as_ptr(), file.file());
         }
         self.debug_file.set(Some(file));
     }
 
     pub fn get_debug_output(&self) -> String {
         let file = self.debug_file.take().expect("debug is not enabled");
-        let data = file.data();
+        let s = file.get_data_string();
         self.debug_file.set(Some(file));
-        unsafe { String::from_utf8_lossy(&*data).into_owned() }
+        s
     }
 
     pub fn link_modules_for_codegen(&self) {
@@ -81,37 +79,5 @@ impl std::ops::Deref for MirGenContext {
 
     fn deref(&self) -> &Self::Target {
         &self.ctx
-    }
-}
-
-#[derive(Debug)]
-struct MemoryFile {
-    file: NonNull<libc::FILE>,
-    // Keep the address stable.
-    buf_info: *mut (*mut c_char, size_t),
-}
-
-impl MemoryFile {
-    fn new() -> Self {
-        let buf_info = Box::into_raw(Box::new((std::ptr::null_mut(), 0)));
-        let file = unsafe { libc::open_memstream(&mut (*buf_info).0, &mut (*buf_info).1) };
-        let file = NonNull::new(file).expect("failed to open_memstream");
-        Self { file, buf_info }
-    }
-
-    /// Get the underlying buffer.
-    /// The returned slice is invalidated when any write is performed on the stream.
-    fn data(&self) -> *const [u8] {
-        unsafe { libc::fflush(self.file.as_ptr()) };
-        let (buf_ptr, buf_len) = unsafe { *self.buf_info };
-        std::ptr::slice_from_raw_parts(buf_ptr.cast(), buf_len)
-    }
-}
-
-impl Drop for MemoryFile {
-    fn drop(&mut self) {
-        unsafe { libc::fclose(self.file.as_ptr()) };
-        let (buf_ptr, _buf_len) = unsafe { *Box::from_raw(self.buf_info) };
-        unsafe { libc::free(buf_ptr.cast()) };
     }
 }

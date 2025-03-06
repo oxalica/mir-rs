@@ -1,15 +1,18 @@
 use std::cell::Cell;
-use std::ffi::CStr;
+use std::ffi::{CStr, c_char};
 use std::marker::PhantomData;
 use std::ptr::NonNull;
 
-use types::IntoOperands;
-
 pub use codegen::MirGenContext;
+use mem_file::MemoryFile;
 pub use mir_sys as ffi;
-pub use types::{InstBuilder, IntoOperand, Operand, Reg, Ty, Val};
+pub use types::{
+    ImportItem, InsnBuilder, InsnBuilderExt, IntoOperand, Label, MemOp, Operand, ProtoItem, Reg,
+    Ty, Val,
+};
 
 mod codegen;
+mod mem_file;
 mod types;
 
 #[derive(Debug)]
@@ -25,13 +28,40 @@ impl Default for MirContext {
     }
 }
 
+unsafe extern "C" {
+    fn MIRRS_error_handler_trampoline(
+        error_type: ffi::MIR_error_type_t,
+        format: *const c_char,
+        ...
+    ) -> !;
+}
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn MIRRS_error_handler_rust(
+    error_type: ffi::MIR_error_type_t,
+    msg: *const u8,
+    len: usize,
+) -> ! {
+    let msg = String::from_utf8_lossy(unsafe { std::slice::from_raw_parts(msg, len) });
+    panic!("mir error {error_type}: {msg}");
+}
+
 impl MirContext {
     pub fn new() -> Self {
+        let ctx = ffi::MIR_init();
+        unsafe { ffi::MIR_set_error_func(ctx, Some(MIRRS_error_handler_trampoline)) };
         Self {
-            ctx: NonNull::new(ffi::MIR_init()).expect("context must not be NULL"),
+            ctx: NonNull::new(ctx).expect("context must not be NULL"),
             module: Cell::new(None),
             func_item: Cell::new(None),
         }
+    }
+
+    pub fn dump_func_item(&self, item: MirFuncItem<'_>) -> String {
+        MemoryFile::with(|file| unsafe {
+            ffi::MIR_output_item(self.ctx.as_ptr(), file, item.func_item.as_ptr())
+        })
+        .1
     }
 
     pub fn enter_new_module(&self, name: &CStr) -> MirModuleBuilder<'_> {
@@ -133,12 +163,48 @@ impl<'ctx> MirModuleBuilder<'ctx> {
         }
     }
 
-    pub fn enter_new_function<'module>(
-        &'module self,
+    pub fn add_proto(&self, name: &CStr, rets: &[Ty], args: &[(&CStr, Ty)]) -> ProtoItem<'_> {
+        let c_args = args
+            .iter()
+            .map(|(name, ty)| ffi::MIR_var {
+                type_: ty.0,
+                name: name.as_ptr(),
+                // Unused.
+                size: 0,
+            })
+            .collect::<Vec<_>>();
+        let item = unsafe {
+            ffi::MIR_new_proto_arr(
+                self.ctx.ctx.as_ptr(),
+                name.as_ptr(),
+                rets.len(),
+                rets.as_ptr().cast::<ffi::MIR_type_t>().cast_mut(),
+                c_args.len(),
+                c_args.as_ptr().cast_mut(),
+            )
+        };
+        let item = NonNull::new(item).expect("proto must not be null");
+        ProtoItem {
+            item,
+            _marker: PhantomData,
+        }
+    }
+
+    pub fn add_import(&self, name: &CStr) -> ImportItem<'_> {
+        let item = unsafe { ffi::MIR_new_import(self.ctx.ctx.as_ptr(), name.as_ptr()) };
+        let item = NonNull::new(item).expect("import must not be null");
+        ImportItem {
+            item,
+            _marker: PhantomData,
+        }
+    }
+
+    pub fn enter_new_function(
+        &'_ self,
         name: &CStr,
-        ret_types: &[Ty],
+        rets: &[Ty],
         args: &[(&CStr, Ty)],
-    ) -> MirFuncBuilder<'module, 'ctx> {
+    ) -> MirFuncBuilder<'_, 'ctx> {
         assert!(
             self.ctx.func_item.get().is_none(),
             "already inside a function"
@@ -156,8 +222,8 @@ impl<'ctx> MirModuleBuilder<'ctx> {
             ffi::MIR_new_func_arr(
                 self.ctx.ctx.as_ptr(),
                 name.as_ptr(),
-                ret_types.len(),
-                ret_types.as_ptr().cast::<ffi::MIR_type_t>().cast_mut(),
+                rets.len(),
+                rets.as_ptr().cast::<ffi::MIR_type_t>().cast_mut(),
                 c_args.len(),
                 c_args.as_ptr().cast_mut(),
             )
@@ -218,7 +284,12 @@ impl<'ctx> MirFuncBuilder<'_, 'ctx> {
         Reg(reg)
     }
 
-    pub fn ins(&mut self) -> FuncInstBuilder<'_, 'ctx> {
+    pub fn new_label(&self) -> Label<'_> {
+        let insn = unsafe { ffi::MIR_new_label(self.ctx.ctx.as_ptr()) };
+        Label(insn, PhantomData)
+    }
+
+    pub fn ins(&self) -> FuncInstBuilder<'_, 'ctx> {
         FuncInstBuilder {
             ctx: self.ctx,
             _marker: PhantomData,
@@ -231,22 +302,12 @@ pub struct FuncInstBuilder<'func, 'ctx> {
     _marker: PhantomData<&'func MirFuncBuilder<'func, 'ctx>>,
 }
 
-impl InstBuilder for FuncInstBuilder<'_, '_> {
-    #[expect(private_bounds)]
-    fn build<const LEN: usize>(
-        self,
-        code: mir_sys::MIR_insn_code_t,
-        ops: impl IntoOperands<Arr = [Operand; LEN]>,
-    ) {
-        let ops = unsafe { ops.build(self.ctx.ctx.as_ptr()) };
-        let insn = unsafe {
-            ffi::MIR_new_insn_arr(
-                self.ctx.ctx.as_ptr(),
-                code,
-                LEN,
-                ops.as_ptr().cast::<ffi::MIR_op_t>().cast_mut(),
-            )
-        };
+unsafe impl<'func> InsnBuilder<'func> for FuncInstBuilder<'func, '_> {
+    fn get_raw_ctx(&self) -> ffi::MIR_context_t {
+        self.ctx.ctx.as_ptr()
+    }
+
+    unsafe fn insert(self, insn: ffi::MIR_insn_t) {
         unsafe {
             ffi::MIR_append_insn(
                 self.ctx.ctx.as_ptr(),
@@ -257,7 +318,7 @@ impl InstBuilder for FuncInstBuilder<'_, '_> {
                     .as_ptr()
                     .cast::<ffi::MIR_item>(),
                 insn,
-            )
-        };
+            );
+        }
     }
 }

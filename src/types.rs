@@ -1,6 +1,7 @@
-use std::fmt;
+use std::ffi::{CStr, c_char};
 use std::marker::PhantomData;
 use std::ptr::{NonNull, null_mut};
+use std::{fmt, ops};
 
 use paste::paste;
 use smallvec::SmallVec;
@@ -56,62 +57,295 @@ impl_val_variant! {
     d: f64;
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct Ty(pub(crate) ffi::MIR_type_t);
 
-impl Ty {
-    pub const I8: Self = Self(ffi::MIR_T_I8);
-    pub const U8: Self = Self(ffi::MIR_T_U8);
-    pub const I16: Self = Self(ffi::MIR_T_I16);
-    pub const U16: Self = Self(ffi::MIR_T_U16);
-    pub const I32: Self = Self(ffi::MIR_T_I32);
-    pub const U32: Self = Self(ffi::MIR_T_U32);
-    pub const I64: Self = Self(ffi::MIR_T_I64);
-    pub const U64: Self = Self(ffi::MIR_T_U64);
-    pub const F: Self = Self(ffi::MIR_T_F);
-    pub const D: Self = Self(ffi::MIR_T_D);
-    pub const LD: Self = Self(ffi::MIR_T_LD);
-    pub const P: Self = Self(ffi::MIR_T_P);
-    pub const BLK: Self = Self(ffi::MIR_T_BLK);
-    pub const RBLK: Self = Self(ffi::MIR_T_RBLK);
-    pub const UNDEF: Self = Self(ffi::MIR_T_UNDEF);
-    pub const BOUND: Self = Self(ffi::MIR_T_BOUND);
+macro_rules! impl_ty_variants {
+    ($($var:ident),* $(,)?) => {
+        impl Ty {
+            $(pub const $var: Self = Self(paste!(ffi::[<MIR_T_ $var>]));)*
+        }
+
+        impl fmt::Debug for Ty {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                let s = match *self {
+                    $(Self::$var => concat!("Ty(MIR_T_", stringify!($var), ")"),)*
+                    Self(raw) => return f.debug_tuple("Ty").field(&raw).finish(),
+                };
+                f.write_str(s)
+            }
+        }
+    };
+}
+
+impl_ty_variants! {
+    I8, U8, I16, U16, I32, U32, I64, U64,
+    F, D, LD, P,
+    BLK, RBLK, UNDEF, BOUND,
+}
+
+#[test]
+fn ty_debug() {
+    assert_eq!(format!("{:?}", Ty::I64), "Ty(MIR_T_I64)");
+    assert_eq!(format!("{:?}", Ty(99)), "Ty(99)");
 }
 
 #[derive(Debug, Clone, Copy)]
 #[repr(transparent)]
 pub struct Reg(pub(crate) ffi::MIR_reg_t);
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 #[repr(transparent)]
-pub struct ProtoItem<'module> {
-    pub(crate) item: NonNull<ffi::MIR_item>,
-    pub(crate) _marker: PhantomData<&'module ()>,
+pub struct ItemRef<'a>(
+    pub(crate) NonNull<ffi::MIR_item>,
+    pub(crate) PhantomData<&'a ffi::MIR_item>,
+);
+
+impl ItemRef<'_> {
+    pub(crate) unsafe fn from_raw(raw: *mut ffi::MIR_item) -> Self {
+        let raw = NonNull::new(raw).expect("item must not be null");
+        Self(raw, PhantomData)
+    }
+
+    pub fn as_raw(&self) -> *mut ffi::MIR_item {
+        self.0.as_ptr()
+    }
 }
 
-impl<'a> From<ProtoItem<'a>> for Operand<'a> {
-    fn from(item: ProtoItem<'a>) -> Self {
-        Self {
-            op: unsafe { ffi::MIR_new_ref_op(null_mut(), item.item.as_ptr()) },
+impl<'a> From<ItemRef<'a>> for Operand<'a> {
+    fn from(item: ItemRef<'a>) -> Self {
+        Operand {
+            op: unsafe { ffi::MIR_new_ref_op(null_mut(), item.as_raw()) },
             _marker: PhantomData,
         }
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-#[repr(transparent)]
-pub struct ImportItem<'module> {
-    pub(crate) item: NonNull<ffi::MIR_item>,
-    pub(crate) _marker: PhantomData<&'module ()>,
+impl fmt::Debug for ItemRef<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut fs = f.debug_struct("ItemRef");
+        let item = unsafe { self.0.as_ref() };
+        fs.field("ptr", &std::ptr::from_ref(self))
+            .field("module", &item.module)
+            .field("addr", &item.addr)
+            .field("type", &item.item_type);
+        let data = &item.u;
+        let mut cb = |data| {
+            fs.field("u", data);
+        };
+        match item.item_type {
+            ffi::MIR_func_item => cb(unsafe { &*data.func.cast::<FuncItemData>() }),
+            ffi::MIR_proto_item => cb(unsafe { &*data.func.cast::<ProtoItemData>() }),
+            ffi::MIR_import_item => cb(&DebugImportLikeItemData(
+                "ImportItemData",
+                "import_id",
+                unsafe { data.import_id },
+            )),
+            ffi::MIR_export_item => cb(&DebugImportLikeItemData(
+                "ExportItemData",
+                "export_id",
+                unsafe { data.export_id },
+            )),
+            ffi::MIR_forward_item => cb(&DebugImportLikeItemData(
+                "ForwardItemData",
+                "forward_id",
+                unsafe { data.forward_id },
+            )),
+            ffi::MIR_data_item => cb(unsafe { &*data.data.cast::<DataItemData>() }),
+            ffi::MIR_ref_data_item => cb(unsafe { &*data.ref_data.cast::<RefDataItemData>() }),
+            ffi::MIR_lref_data_item => cb(unsafe { &*data.lref_data.cast::<LrefDataItemData>() }),
+            ffi::MIR_expr_data_item => cb(unsafe { &*data.expr_data.cast::<ExprDataItemData>() }),
+            ffi::MIR_bss_item => cb(unsafe { &*data.bss.cast::<BssItemData>() }),
+            _ => {}
+        }
+        fs.finish_non_exhaustive()
+    }
 }
 
-impl<'a> From<ImportItem<'a>> for Operand<'a> {
-    fn from(item: ImportItem<'a>) -> Self {
-        Self {
-            op: unsafe { ffi::MIR_new_ref_op(null_mut(), item.item.as_ptr()) },
-            _marker: PhantomData,
+macro_rules! def_item_ref_variant {
+    ($name:ident) => {
+        #[derive(Debug, Clone, Copy)]
+        #[repr(transparent)]
+        pub struct $name<'a>(pub(crate) ItemRef<'a>);
+
+        impl<'a> ops::Deref for $name<'a> {
+            type Target = ItemRef<'a>;
+
+            fn deref(&self) -> &Self::Target {
+                &self.0
+            }
         }
+
+        impl<'a> From<$name<'a>> for Operand<'a> {
+            fn from(item: $name<'a>) -> Self {
+                item.0.into()
+            }
+        }
+    };
+}
+
+def_item_ref_variant!(FuncItemRef);
+
+impl FuncItemRef<'_> {
+    /// # Safety
+    /// The returned reference is invalidated if any MIR functions is called.
+    pub(crate) unsafe fn data(&self) -> &ffi::MIR_func {
+        unsafe { &*self.0.0.as_ref().u.func }
+    }
+}
+
+#[repr(transparent)]
+struct FuncItemData(ffi::MIR_func);
+
+impl fmt::Debug for FuncItemData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let u = &self.0;
+        f.debug_struct("FuncItemData")
+            .field("name", &unsafe { CStr::from_ptr(u.name) })
+            .field("func_item", &u.func_item)
+            .field("original_vars_num", &u.original_insns)
+            .field("nres", &u.nres)
+            .field("nargs", &u.nargs)
+            .field("res_types", &unsafe {
+                std::slice::from_raw_parts(u.res_types.cast::<Ty>(), u.nres as usize)
+            })
+            .field("varargs_p", &(u.vararg_p != 0))
+            .field("expr_p", &(u.expr_p != 0))
+            .field("jret_p", &(u.jret_p != 0))
+            .field("vars", &DebugVars(u.vars))
+            .field("global_vars", &DebugVars(u.global_vars))
+            .finish_non_exhaustive()
+    }
+}
+
+#[repr(transparent)]
+struct DebugVar(ffi::MIR_var);
+
+impl fmt::Debug for DebugVar {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Var")
+            .field("type", &Ty(self.0.type_))
+            .field("name", &unsafe { CStr::from_ptr(self.0.name) })
+            // .field("size", &self.0.size) // Contains garbage?
+            .finish_non_exhaustive()
+    }
+}
+
+struct DebugVars(*mut ffi::VARR_MIR_var_t);
+
+impl fmt::Debug for DebugVars {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let vars = if self.0.is_null() {
+            &[]
+        } else {
+            unsafe {
+                let varr = &*self.0;
+                std::slice::from_raw_parts(varr.varr.cast::<DebugVar>().cast_const(), varr.els_num)
+            }
+        };
+        vars.fmt(f)
+    }
+}
+
+def_item_ref_variant!(ProtoItemRef);
+
+#[repr(transparent)]
+struct ProtoItemData(ffi::MIR_proto);
+
+impl fmt::Debug for ProtoItemData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let u = &self.0;
+        f.debug_struct("ProtoItemData")
+            .field("name", &unsafe { CStr::from_ptr(u.name) })
+            .field("nres", &u.nres)
+            .field("res_types", &unsafe {
+                std::slice::from_raw_parts(u.res_types.cast::<Ty>(), u.nres as usize)
+            })
+            .finish_non_exhaustive()
+    }
+}
+
+def_item_ref_variant!(ImportItemRef);
+def_item_ref_variant!(ExportItemRef);
+def_item_ref_variant!(ForwardItemRef);
+
+struct DebugImportLikeItemData(&'static str, &'static str, *const c_char);
+
+impl fmt::Debug for DebugImportLikeItemData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct(self.0)
+            .field(self.1, &unsafe { CStr::from_ptr(self.2) })
+            .finish()
+    }
+}
+
+#[repr(transparent)]
+struct DataItemData(ffi::MIR_data);
+
+impl fmt::Debug for DataItemData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let u = &self.0;
+        f.debug_struct("DataItemData")
+            .field("name", &unsafe { CStr::from_ptr(u.name) })
+            .field("el_type", &Ty(u.el_type))
+            .field("nel", &u.nel)
+            .finish_non_exhaustive()
+    }
+}
+
+#[repr(transparent)]
+struct RefDataItemData(ffi::MIR_ref_data);
+
+impl fmt::Debug for RefDataItemData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let u = &self.0;
+        f.debug_struct("RefDataItemData")
+            .field("name", &unsafe { CStr::from_ptr(u.name) })
+            .field("ref_item", &unsafe { ItemRef::from_raw(u.ref_item) })
+            .field("disp", &u.disp)
+            .field("load_addr", &u.load_addr)
+            .finish()
+    }
+}
+
+#[repr(transparent)]
+struct LrefDataItemData(ffi::MIR_lref_data);
+
+impl fmt::Debug for LrefDataItemData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let u = &self.0;
+        f.debug_struct("LrefDataItemData")
+            .field("name", &unsafe { CStr::from_ptr(u.name) })
+            .field("disp", &u.disp)
+            .field("load_addr", &u.load_addr)
+            .finish()
+    }
+}
+
+#[repr(transparent)]
+struct ExprDataItemData(ffi::MIR_expr_data);
+
+impl fmt::Debug for ExprDataItemData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let u = &self.0;
+        f.debug_struct("ExprItemData")
+            .field("name", &unsafe { CStr::from_ptr(u.name) })
+            .field("expr_item", &unsafe { ItemRef::from_raw(u.expr_item) })
+            .finish_non_exhaustive()
+    }
+}
+
+#[repr(transparent)]
+struct BssItemData(ffi::MIR_bss);
+
+impl fmt::Debug for BssItemData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let u = &self.0;
+        f.debug_struct("BssItemData")
+            .field("name", &unsafe { CStr::from_ptr(u.name) })
+            .field("len", &u.len)
+            .finish()
     }
 }
 
@@ -332,7 +566,7 @@ pub trait InsnBuilderExt<'func>: InsnBuilder<'func> {
     // Call.
     fn call<'o>(
         self,
-        proto: ProtoItem<'o>,
+        proto: ProtoItemRef<'o>,
         func: impl IntoOperand<'o>,
         results: impl IntoIterator<Item = Operand<'o>>,
         args: impl IntoIterator<Item = Operand<'o>>,
@@ -348,7 +582,7 @@ pub trait InsnBuilderExt<'func>: InsnBuilder<'func> {
     }
     fn inline<'o>(
         self,
-        proto: ProtoItem<'o>,
+        proto: ProtoItemRef<'o>,
         func: impl IntoOperand<'o>,
         results: impl IntoIterator<Item = Operand<'o>>,
         args: impl IntoIterator<Item = Operand<'o>>,
@@ -364,7 +598,7 @@ pub trait InsnBuilderExt<'func>: InsnBuilder<'func> {
     }
     fn jcall<'o>(
         self,
-        proto: ProtoItem<'o>,
+        proto: ProtoItemRef<'o>,
         func: impl IntoOperand<'o>,
         results: impl IntoIterator<Item = Operand<'o>>,
         args: impl IntoIterator<Item = Operand<'o>>,

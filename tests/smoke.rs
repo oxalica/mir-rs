@@ -1,7 +1,7 @@
 use std::ffi::CStr;
 use std::mem;
 
-use mir::{InsnBuilderExt, MemOp, MirContext, MirFuncItem, MirGenContext, MirModule, Ty, Val};
+use mir::{FuncItemRef, InsnBuilderExt, MemOp, MirContext, MirGenContext, MirModule, Ty, Val};
 use rstest::rstest;
 
 #[test]
@@ -9,7 +9,7 @@ fn init() {
     let _ctx = MirContext::new();
 }
 
-fn build_add_module(ctx: &MirContext) -> (MirModule<'_>, MirFuncItem<'_>) {
+fn build_add_module(ctx: &MirContext) -> (MirModule<'_>, FuncItemRef<'_>) {
     let mb = ctx.enter_new_module(c"module");
     let fb = mb.enter_new_function(c"add", &[Ty::I64], &[(c"a", Ty::I64), (c"b", Ty::I64)]);
     let a = fb.get_reg(c"a");

@@ -7,8 +7,8 @@ pub use codegen::MirGenContext;
 use mem_file::MemoryFile;
 pub use mir_sys as ffi;
 pub use types::{
-    ImportItem, InsnBuilder, InsnBuilderExt, IntoOperand, Label, MemOp, Operand, ProtoItem, Reg,
-    Ty, Val,
+    ExportItemRef, ForwardItemRef, FuncItemRef, ImportItemRef, InsnBuilder, InsnBuilderExt,
+    IntoOperand, ItemRef, Label, MemOp, Operand, ProtoItemRef, Reg, Ty, Val,
 };
 
 mod codegen;
@@ -59,9 +59,9 @@ impl MirContext {
         }
     }
 
-    pub fn dump_func_item(&self, item: MirFuncItem<'_>) -> String {
+    pub fn dump_func_item(&self, item: FuncItemRef<'_>) -> String {
         MemoryFile::with(|file| unsafe {
-            ffi::MIR_output_item(self.ctx.as_ptr(), file, item.func_item.as_ptr())
+            ffi::MIR_output_item(self.ctx.as_ptr(), file, item.0.0.as_ptr())
         })
         .1
     }
@@ -129,34 +129,22 @@ impl MirContext {
     /// TODO
     pub unsafe fn interpret_unchecked(
         &self,
-        func_item: MirFuncItem<'_>,
+        func: FuncItemRef<'_>,
         results: &mut [Val],
         args: &[Val],
     ) {
-        let func = unsafe { &*func_item.get_raw_func() };
-        debug_assert_eq!(func.nres as usize, results.len());
-        debug_assert_eq!(func.nargs as usize, args.len());
+        let data = unsafe { func.data() };
+        debug_assert_eq!(data.nres as usize, results.len());
+        debug_assert_eq!(data.nargs as usize, args.len());
         unsafe {
             ffi::MIR_interp_arr(
                 self.ctx.as_ptr(),
-                func_item.func_item.as_ptr(),
+                func.as_raw(),
                 results.as_mut_ptr().cast::<ffi::MIR_val_t>(),
                 args.len(),
                 args.as_ptr().cast::<ffi::MIR_val_t>().cast_mut(),
             )
         };
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct MirFuncItem<'ctx> {
-    func_item: NonNull<ffi::MIR_item>,
-    _marker: PhantomData<&'ctx MirContext>,
-}
-
-impl MirFuncItem<'_> {
-    fn get_raw_func(&self) -> *mut ffi::MIR_func {
-        unsafe { self.func_item.as_ref().u.func }
     }
 }
 
@@ -205,7 +193,7 @@ impl<'ctx> MirModuleBuilder<'ctx> {
         }
     }
 
-    pub fn add_proto(&self, name: &CStr, rets: &[Ty], args: &[(&CStr, Ty)]) -> ProtoItem<'_> {
+    pub fn add_proto(&self, name: &CStr, rets: &[Ty], args: &[(&CStr, Ty)]) -> ProtoItemRef<'_> {
         let c_args = args
             .iter()
             .map(|(name, ty)| ffi::MIR_var {
@@ -216,29 +204,22 @@ impl<'ctx> MirModuleBuilder<'ctx> {
             })
             .collect::<Vec<_>>();
         let item = unsafe {
-            ffi::MIR_new_proto_arr(
+            ItemRef::from_raw(ffi::MIR_new_proto_arr(
                 self.ctx.ctx.as_ptr(),
                 name.as_ptr(),
                 rets.len(),
                 rets.as_ptr().cast::<ffi::MIR_type_t>().cast_mut(),
                 c_args.len(),
                 c_args.as_ptr().cast_mut(),
-            )
+            ))
         };
-        let item = NonNull::new(item).expect("proto must not be null");
-        ProtoItem {
-            item,
-            _marker: PhantomData,
-        }
+        ProtoItemRef(item)
     }
 
-    pub fn add_import(&self, name: &CStr) -> ImportItem<'_> {
-        let item = unsafe { ffi::MIR_new_import(self.ctx.ctx.as_ptr(), name.as_ptr()) };
-        let item = NonNull::new(item).expect("import must not be null");
-        ImportItem {
-            item,
-            _marker: PhantomData,
-        }
+    pub fn add_import(&self, name: &CStr) -> ImportItemRef<'_> {
+        let item =
+            unsafe { ItemRef::from_raw(ffi::MIR_new_import(self.ctx.ctx.as_ptr(), name.as_ptr())) };
+        ImportItemRef(item)
     }
 
     pub fn enter_new_function(
@@ -300,13 +281,10 @@ impl Drop for MirFuncBuilder<'_, '_> {
 }
 
 impl<'ctx> MirFuncBuilder<'_, 'ctx> {
-    pub fn finish(self) -> MirFuncItem<'ctx> {
+    pub fn finish(self) -> FuncItemRef<'ctx> {
         let func_item = self.ctx.func_item.get().expect("must be inside a function");
         drop(self);
-        MirFuncItem {
-            func_item,
-            _marker: PhantomData,
-        }
+        FuncItemRef(ItemRef(func_item, PhantomData))
     }
 
     pub fn get_reg(&self, name: &CStr) -> Reg {

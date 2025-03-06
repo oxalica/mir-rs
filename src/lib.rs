@@ -8,7 +8,7 @@ use mem_file::MemoryFile;
 pub use mir_sys as ffi;
 pub use types::{
     BssItemRef, DataItemRef, ExportItemRef, ExprDataItemRef, ForwardItemRef, FuncItemRef,
-    ImportItemRef, InsnBuilder, InsnBuilderExt, IntoOperand, ItemRef, Label, LabelRefDataItemRef,
+    ImportItemRef, InsnBuilder, InsnBuilderBase, IntoOperand, ItemRef, Label, LabelRefDataItemRef,
     MemOp, Operand, ProtoItemRef, RefDataItemRef, Reg, Ty, Val,
 };
 
@@ -60,29 +60,26 @@ impl MirContext {
         }
     }
 
-    pub fn dump_func_item(&self, item: FuncItemRef<'_>) -> String {
-        MemoryFile::with(|file| unsafe {
-            ffi::MIR_output_item(self.ctx.as_ptr(), file, item.0.0.as_ptr())
-        })
-        .1
+    pub fn as_raw(&self) -> *mut ffi::MIR_context {
+        self.ctx.as_ptr()
     }
 
     pub fn enter_new_module(&self, name: &CStr) -> MirModuleBuilder<'_> {
         assert!(self.module.get().is_none(), "already inside a module");
-        let module = unsafe { ffi::MIR_new_module(self.ctx.as_ptr(), name.as_ptr()) };
+        let module = unsafe { ffi::MIR_new_module(self.as_raw(), name.as_ptr()) };
         self.module
             .set(Some(NonNull::new(module).expect("module must not be null")));
         MirModuleBuilder { ctx: self }
     }
 
-    pub fn load_module(&self, module: MirModule<'_>) {
-        unsafe { ffi::MIR_load_module(self.ctx.as_ptr(), module.module.as_ptr()) };
+    pub fn load_module(&self, module: MirModuleRef<'_>) {
+        unsafe { ffi::MIR_load_module(self.as_raw(), module.module.as_ptr()) };
     }
 
     /// # Safety
     /// `addr` must be a valid function pointer with matching prototype.
     pub unsafe fn load_external(&self, name: &CStr, addr: *mut c_void) {
-        unsafe { ffi::MIR_load_external(self.ctx.as_ptr(), name.as_ptr(), addr) };
+        unsafe { ffi::MIR_load_external(self.as_raw(), name.as_ptr(), addr) };
     }
 
     /// # Safety
@@ -109,10 +106,10 @@ impl MirContext {
             Some(resolver) => RESOLVER_CALLBACK.with(|cb| {
                 assert!(cb.get().is_none(), "cannot link recursively");
                 cb.set(Some(NonNull::from(resolver)));
-                unsafe { ffi::MIR_link(self.ctx.as_ptr(), set_interface, Some(trampoline)) };
+                unsafe { ffi::MIR_link(self.as_raw(), set_interface, Some(trampoline)) };
                 cb.set(None);
             }),
-            None => unsafe { ffi::MIR_link(self.ctx.as_ptr(), set_interface, None) },
+            None => unsafe { ffi::MIR_link(self.as_raw(), set_interface, None) },
         }
     }
 
@@ -139,7 +136,7 @@ impl MirContext {
         debug_assert_eq!(data.nargs as usize, args.len());
         unsafe {
             ffi::MIR_interp_arr(
-                self.ctx.as_ptr(),
+                self.as_raw(),
                 func.as_raw(),
                 results.as_mut_ptr().cast::<ffi::MIR_val_t>(),
                 args.len(),
@@ -157,19 +154,32 @@ impl Drop for MirContext {
         }
 
         if self.func_item.get().is_some() {
-            unsafe { ffi::MIR_finish_func(self.ctx.as_ptr()) };
+            unsafe { ffi::MIR_finish_func(self.as_raw()) };
         }
         if self.module.get().is_some() {
-            unsafe { ffi::MIR_finish_module(self.ctx.as_ptr()) };
+            unsafe { ffi::MIR_finish_module(self.as_raw()) };
         }
-        unsafe { ffi::MIR_finish(self.ctx.as_ptr()) };
+        unsafe { ffi::MIR_finish(self.as_raw()) };
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct MirModule<'ctx> {
+pub struct MirModuleRef<'ctx> {
     module: NonNull<ffi::MIR_module>,
     _marker: PhantomData<&'ctx MirContext>,
+}
+
+impl MirModuleRef<'_> {
+    pub fn as_raw(&self) -> *mut ffi::MIR_module {
+        self.module.as_ptr()
+    }
+
+    pub fn dump(&self, ctx: &MirContext) -> String {
+        MemoryFile::with(|file| unsafe {
+            ffi::MIR_output_module(ctx.as_raw(), file, self.as_raw())
+        })
+        .1
+    }
 }
 
 #[derive(Debug)]
@@ -180,22 +190,22 @@ pub struct MirModuleBuilder<'ctx> {
 impl Drop for MirModuleBuilder<'_> {
     fn drop(&mut self) {
         self.ctx.module.take().expect("must be inside a module");
-        unsafe { ffi::MIR_finish_module(self.ctx.ctx.as_ptr()) };
+        unsafe { ffi::MIR_finish_module(self.as_raw_ctx()) };
     }
 }
 
 impl<'ctx> MirModuleBuilder<'ctx> {
-    pub fn finish(self) -> MirModule<'ctx> {
+    pub fn finish(self) -> MirModuleRef<'ctx> {
         let module = self.ctx.module.get().expect("must be inside a module");
         drop(self);
-        MirModule {
+        MirModuleRef {
             module,
             _marker: PhantomData,
         }
     }
 
     fn as_raw_ctx(&self) -> *mut ffi::MIR_context {
-        self.ctx.ctx.as_ptr()
+        self.ctx.as_raw()
     }
 
     pub fn add_proto(&self, name: &CStr, rets: &[Ty], args: &[(&CStr, Ty)]) -> ProtoItemRef<'_> {
@@ -354,7 +364,7 @@ impl<'ctx> MirModuleBuilder<'ctx> {
 pub struct MirFuncBuilder<'module, 'ctx> {
     func: NonNull<ffi::MIR_func>,
     ctx: &'ctx MirContext,
-    _marker: PhantomData<&'module MirModule<'ctx>>,
+    _marker: PhantomData<&'module MirModuleRef<'ctx>>,
 }
 
 impl Drop for MirFuncBuilder<'_, '_> {
@@ -409,7 +419,7 @@ pub struct FuncInstBuilder<'func, 'ctx> {
     _marker: PhantomData<&'func MirFuncBuilder<'func, 'ctx>>,
 }
 
-unsafe impl<'func> InsnBuilder<'func> for FuncInstBuilder<'func, '_> {
+unsafe impl<'func> InsnBuilderBase<'func> for FuncInstBuilder<'func, '_> {
     fn get_raw_ctx(&self) -> ffi::MIR_context_t {
         self.ctx.ctx.as_ptr()
     }
@@ -417,7 +427,7 @@ unsafe impl<'func> InsnBuilder<'func> for FuncInstBuilder<'func, '_> {
     unsafe fn insert(self, insn: ffi::MIR_insn_t) {
         unsafe {
             ffi::MIR_append_insn(
-                self.ctx.ctx.as_ptr(),
+                self.ctx.as_raw(),
                 self.ctx
                     .func_item
                     .get()

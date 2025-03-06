@@ -1,7 +1,7 @@
 use std::ffi::CStr;
 use std::mem;
 
-use mir::{FuncItemRef, InsnBuilderExt, MemOp, MirContext, MirGenContext, MirModule, Ty, Val};
+use mir::{FuncItemRef, InsnBuilder, MemOp, MirContext, MirGenContext, MirModuleRef, Ty, Val};
 use rstest::rstest;
 
 #[test]
@@ -9,7 +9,7 @@ fn init() {
     let _ctx = MirContext::new();
 }
 
-fn build_add_module(ctx: &MirContext) -> (MirModule<'_>, FuncItemRef<'_>) {
+fn build_add_module(ctx: &MirContext) -> (MirModuleRef<'_>, FuncItemRef<'_>) {
     let mb = ctx.enter_new_module(c"module");
     let fb = mb.enter_new_function(c"add", &[Ty::I64], &[(c"a", Ty::I64), (c"b", Ty::I64)]);
     let a = fb.get_reg(c"a");
@@ -127,7 +127,7 @@ fn euler_sieve(#[case] interp: bool, #[case] dyn_resolve: bool) {
         f.ins().ret(pr_len);
     }
     let func_sieve = f.finish();
-    println!("MIR:\n{}", ctx.dump_func_item(func_sieve));
+    println!("MIR:\n{}", func_sieve.dump(&ctx));
     let module = m.finish();
 
     let resolver = |name: &CStr| {

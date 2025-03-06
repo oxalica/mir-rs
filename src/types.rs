@@ -6,7 +6,7 @@ use std::{fmt, ops};
 use paste::paste;
 use smallvec::SmallVec;
 
-use crate::ffi;
+use crate::{MemoryFile, MirContext, ffi};
 
 #[derive(Clone, Copy)]
 #[repr(transparent)]
@@ -110,6 +110,11 @@ impl ItemRef<'_> {
 
     pub fn as_raw(&self) -> *mut ffi::MIR_item {
         self.0.as_ptr()
+    }
+
+    pub fn dump(&self, ctx: &MirContext) -> String {
+        MemoryFile::with(|file| unsafe { ffi::MIR_output_item(ctx.as_raw(), file, self.as_raw()) })
+            .1
     }
 }
 
@@ -538,17 +543,17 @@ macro_rules! def_call_insn {
 
 /// # Safety
 /// TODO
-pub unsafe trait InsnBuilder<'func>: Sized {
+pub unsafe trait InsnBuilderBase<'func>: Sized {
     fn get_raw_ctx(&self) -> ffi::MIR_context_t;
     /// # Safety
     /// TODO
     unsafe fn insert(self, insn: ffi::MIR_insn_t);
 }
 
-impl<'func, T: InsnBuilder<'func>> InsnBuilderExt<'func> for T {}
+impl<'func, T: InsnBuilderBase<'func>> InsnBuilder<'func> for T {}
 
 // Mostly follows the order in mir.h.
-pub trait InsnBuilderExt<'func>: InsnBuilder<'func> {
+pub trait InsnBuilder<'func>: InsnBuilderBase<'func> {
     // Unary ops.
     def_simple_insn! {
         (dst, src);
@@ -635,7 +640,7 @@ pub trait InsnBuilderExt<'func>: InsnBuilder<'func> {
 }
 
 fn build_insn<'func, 'o>(
-    this: impl InsnBuilder<'func>,
+    this: impl InsnBuilderBase<'func>,
     code: mir_sys::MIR_insn_code_t,
     ops: impl IntoIterator<Item = Operand<'o>>,
 ) {

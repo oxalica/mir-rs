@@ -3,7 +3,7 @@ use std::ffi::{c_int, c_void};
 use std::fmt;
 
 use crate::mem_file::MemoryFile;
-use crate::{MirContext, MirFuncItem, ffi};
+use crate::{ImportResolver, MirContext, MirFuncItem, ffi};
 
 pub struct MirGenContext {
     ctx: MirContext,
@@ -48,14 +48,13 @@ impl MirGenContext {
     }
 
     pub fn link_modules_for_codegen(&self) {
-        unsafe {
-            ffi::MIR_link(
-                self.ctx.ctx.as_ptr(),
-                Some(ffi::MIR_set_gen_interface),
-                // TODO
-                None,
-            );
-        }
+        unsafe { self.link_modules(Some(ffi::MIR_set_gen_interface), None) }
+    }
+
+    /// # Safety
+    /// `resolver` must return valid function pointers with matching prototype.
+    pub unsafe fn link_modules_for_codegen_with_resolver(&self, resolver: &ImportResolver) {
+        unsafe { self.link_modules(Some(ffi::MIR_set_gen_interface), Some(resolver)) }
     }
 
     pub fn codegen_func(&self, func_item: MirFuncItem<'_>) -> *mut c_void {

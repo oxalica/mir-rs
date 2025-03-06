@@ -1,5 +1,5 @@
 use std::cell::Cell;
-use std::ffi::{CStr, c_char};
+use std::ffi::{CStr, c_char, c_void};
 use std::marker::PhantomData;
 use std::ptr::NonNull;
 
@@ -46,6 +46,8 @@ unsafe extern "C" fn MIRRS_error_handler_rust(
     panic!("mir error {error_type}: {msg}");
 }
 
+type ImportResolver = dyn Fn(&CStr) -> *mut c_void;
+
 impl MirContext {
     pub fn new() -> Self {
         let ctx = ffi::MIR_init();
@@ -76,15 +78,49 @@ impl MirContext {
         unsafe { ffi::MIR_load_module(self.ctx.as_ptr(), module.module.as_ptr()) };
     }
 
-    pub fn link_modules_for_interpreter(&self) {
-        unsafe {
-            ffi::MIR_link(
-                self.ctx.as_ptr(),
-                Some(ffi::MIR_set_interp_interface),
-                // TODO
-                None,
-            );
+    /// # Safety
+    /// `addr` must be a valid function pointer with matching prototype.
+    pub unsafe fn load_external(&self, name: &CStr, addr: *mut c_void) {
+        unsafe { ffi::MIR_load_external(self.ctx.as_ptr(), name.as_ptr(), addr) };
+    }
+
+    /// # Safety
+    /// `resolver` must return valid function pointers with matching prototype.
+    pub(crate) unsafe fn link_modules(
+        &self,
+        set_interface: Option<unsafe extern "C" fn(ctx: ffi::MIR_context_t, item: ffi::MIR_item_t)>,
+        resolver: Option<&ImportResolver>,
+    ) {
+        thread_local! {
+            static RESOLVER_CALLBACK: Cell<Option<NonNull<ImportResolver>>> = const { Cell::new(None) };
         }
+
+        unsafe extern "C" fn trampoline(name: *const c_char) -> *mut c_void {
+            RESOLVER_CALLBACK.with(|cb| {
+                let cb = unsafe { cb.get().expect("resolver must be set").as_ref() };
+                cb(unsafe { CStr::from_ptr(name) })
+            })
+        }
+
+        match resolver {
+            Some(resolver) => RESOLVER_CALLBACK.with(|cb| {
+                assert!(cb.get().is_none(), "cannot link recursively");
+                cb.set(Some(NonNull::from(resolver)));
+                unsafe { ffi::MIR_link(self.ctx.as_ptr(), set_interface, Some(trampoline)) };
+                cb.set(None);
+            }),
+            None => unsafe { ffi::MIR_link(self.ctx.as_ptr(), set_interface, None) },
+        }
+    }
+
+    pub fn link_modules_for_interpret(&self) {
+        unsafe { self.link_modules(Some(ffi::MIR_set_interp_interface), None) }
+    }
+
+    /// # Safety
+    /// `resolver` must return valid function pointers with matching prototype.
+    pub unsafe fn link_modules_for_interpret_with_resolver(&self, resolver: &ImportResolver) {
+        unsafe { self.link_modules(Some(ffi::MIR_set_interp_interface), Some(resolver)) }
     }
 
     /// # Safety

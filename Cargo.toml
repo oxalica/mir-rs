@@ -23,3 +23,6 @@ smallvec = "1.14.0"
 cc = "1.2.16"
 
 [workspace]
+
+[dev-dependencies]
+rstest = { version = "0.25.0", default-features = false }

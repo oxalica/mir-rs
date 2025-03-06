@@ -1,6 +1,8 @@
+use std::ffi::CStr;
 use std::mem;
 
 use mir::{InsnBuilderExt, MemOp, MirContext, MirFuncItem, MirGenContext, MirModule, Ty, Val};
+use rstest::rstest;
 
 #[test]
 fn init() {
@@ -25,7 +27,7 @@ fn add_interp() {
     let ctx = MirContext::new();
     let (module, func_item) = build_add_module(&ctx);
     ctx.load_module(module);
-    ctx.link_modules_for_interpreter();
+    ctx.link_modules_for_interpret();
     let mut ret = [Val::default()];
     unsafe { ctx.interpret_unchecked(func_item, &mut ret, &[Val::from(40i64), Val::from(2i64)]) };
     assert_eq!(ret[0].as_i64(), 42);
@@ -49,10 +51,21 @@ fn add_gen() {
     assert_eq!(ret, 42);
 }
 
-#[test]
-fn euler_sieve() {
+#[rstest]
+#[case::interp_static_link(true, false)]
+#[case::interp_dynamic_link(true, true)]
+#[case::codegen_static_link(false, false)]
+#[case::codegen_dynamic_link(false, true)]
+fn euler_sieve(#[case] interp: bool, #[case] dyn_resolve: bool) {
     let ctx = MirGenContext::new(MirContext::new());
     let m = ctx.enter_new_module(c"sieve");
+
+    let memset_proto = m.add_proto(
+        c"memset_proto",
+        &[],
+        &[(c"ptr", Ty::P), (c"val", Ty::I32), (c"len", Ty::I64)],
+    );
+    let memset_import = m.add_import(c"memset");
 
     let f = m.enter_new_function(
         c"sieve",
@@ -65,6 +78,15 @@ fn euler_sieve() {
         let n = f.get_reg(c"n");
         let pr_len = f.new_local_reg(c"pr_len", Ty::I64);
         f.ins().mov(pr_len, 0i64);
+
+        let lp_byte_len = f.new_local_reg(c"lp_byte_len", Ty::I64);
+        f.ins().mul(lp_byte_len, n, 4i64);
+        f.ins().call(
+            memset_proto,
+            memset_import,
+            [],
+            [lp.into(), 0i64.into(), lp_byte_len.into()],
+        );
 
         let i = f.new_local_reg(c"i", Ty::I64);
         f.ins().mov(i, 2i64);
@@ -106,22 +128,54 @@ fn euler_sieve() {
     }
     let func_sieve = f.finish();
     println!("MIR:\n{}", ctx.dump_func_item(func_sieve));
-
     let module = m.finish();
-    ctx.enable_debug(1);
-    ctx.set_opt_level(3);
-    ctx.load_module(module);
-    ctx.link_modules_for_codegen();
-    let sieve = ctx.codegen_func(func_sieve);
-    println!("Debug output:\n{}", ctx.get_debug_output());
 
-    type SieveTy = unsafe extern "C" fn(pr: *mut i32, lp: *mut i32, n: usize) -> usize;
-    let sieve = unsafe { mem::transmute::<*mut _, SieveTy>(sieve) };
+    let resolver = |name: &CStr| {
+        if name == c"memset" {
+            libc::memset as _
+        } else {
+            std::ptr::null_mut()
+        }
+    };
 
     const N: usize = 50;
     let mut pr = [0i32; N];
     let mut lp = [0i32; N];
-    let pr_len = unsafe { sieve(pr.as_mut_ptr(), lp.as_mut_ptr(), N) };
+
+    ctx.load_module(module);
+    let pr_len = if interp {
+        if dyn_resolve {
+            unsafe { ctx.link_modules_for_interpret_with_resolver(&resolver) };
+        } else {
+            unsafe { ctx.load_external(c"memset", libc::memset as _) };
+            ctx.link_modules_for_interpret();
+        }
+
+        let args = [
+            Val::from(pr.as_mut_ptr() as i64),
+            Val::from(lp.as_mut_ptr() as i64),
+            Val::from(N as i64),
+        ];
+        let mut ret = [Val::default()];
+        unsafe { ctx.interpret_unchecked(func_sieve, &mut ret, &args) };
+        ret[0].as_u64() as usize
+    } else {
+        ctx.enable_debug(1);
+        ctx.set_opt_level(3);
+        if dyn_resolve {
+            unsafe { ctx.link_modules_for_codegen_with_resolver(&resolver) };
+        } else {
+            unsafe { ctx.load_external(c"memset", libc::memset as _) };
+            ctx.link_modules_for_codegen();
+        }
+        let sieve = ctx.codegen_func(func_sieve);
+        println!("Debug output:\n{}", ctx.get_debug_output());
+
+        type SieveTy = unsafe extern "C" fn(pr: *mut i32, lp: *mut i32, n: usize) -> usize;
+        let sieve = unsafe { mem::transmute::<*mut _, SieveTy>(sieve) };
+        unsafe { sieve(pr.as_mut_ptr(), lp.as_mut_ptr(), N) }
+    };
+
     let primes = &pr[..pr_len];
     assert_eq!(
         primes,

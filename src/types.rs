@@ -154,7 +154,9 @@ impl fmt::Debug for ItemRef<'_> {
             )),
             ffi::MIR_data_item => cb(unsafe { &*data.data.cast::<DataItemData>() }),
             ffi::MIR_ref_data_item => cb(unsafe { &*data.ref_data.cast::<RefDataItemData>() }),
-            ffi::MIR_lref_data_item => cb(unsafe { &*data.lref_data.cast::<LrefDataItemData>() }),
+            ffi::MIR_lref_data_item => {
+                cb(unsafe { &*data.lref_data.cast::<LabelRefDataItemData>() })
+            }
             ffi::MIR_expr_data_item => cb(unsafe { &*data.expr_data.cast::<ExprDataItemData>() }),
             ffi::MIR_bss_item => cb(unsafe { &*data.bss.cast::<BssItemData>() }),
             _ => {}
@@ -280,6 +282,8 @@ impl fmt::Debug for DebugImportLikeItemData {
     }
 }
 
+def_item_ref_variant!(DataItemRef);
+
 #[repr(transparent)]
 struct DataItemData(ffi::MIR_data);
 
@@ -293,6 +297,8 @@ impl fmt::Debug for DataItemData {
             .finish_non_exhaustive()
     }
 }
+
+def_item_ref_variant!(RefDataItemRef);
 
 #[repr(transparent)]
 struct RefDataItemData(ffi::MIR_ref_data);
@@ -309,19 +315,23 @@ impl fmt::Debug for RefDataItemData {
     }
 }
 
-#[repr(transparent)]
-struct LrefDataItemData(ffi::MIR_lref_data);
+def_item_ref_variant!(LabelRefDataItemRef);
 
-impl fmt::Debug for LrefDataItemData {
+#[repr(transparent)]
+struct LabelRefDataItemData(ffi::MIR_lref_data);
+
+impl fmt::Debug for LabelRefDataItemData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let u = &self.0;
-        f.debug_struct("LrefDataItemData")
+        f.debug_struct("LableRefDataItemData")
             .field("name", &unsafe { CStr::from_ptr(u.name) })
             .field("disp", &u.disp)
             .field("load_addr", &u.load_addr)
             .finish()
     }
 }
+
+def_item_ref_variant!(ExprDataItemRef);
 
 #[repr(transparent)]
 struct ExprDataItemData(ffi::MIR_expr_data);
@@ -335,6 +345,8 @@ impl fmt::Debug for ExprDataItemData {
             .finish_non_exhaustive()
     }
 }
+
+def_item_ref_variant!(BssItemRef);
 
 #[repr(transparent)]
 struct BssItemData(ffi::MIR_bss);

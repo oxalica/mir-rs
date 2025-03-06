@@ -1,14 +1,15 @@
 use std::cell::Cell;
 use std::ffi::{CStr, c_char, c_void};
 use std::marker::PhantomData;
-use std::ptr::NonNull;
+use std::ptr::{NonNull, null, null_mut};
 
 pub use codegen::MirGenContext;
 use mem_file::MemoryFile;
 pub use mir_sys as ffi;
 pub use types::{
-    ExportItemRef, ForwardItemRef, FuncItemRef, ImportItemRef, InsnBuilder, InsnBuilderExt,
-    IntoOperand, ItemRef, Label, MemOp, Operand, ProtoItemRef, Reg, Ty, Val,
+    BssItemRef, DataItemRef, ExportItemRef, ExprDataItemRef, ForwardItemRef, FuncItemRef,
+    ImportItemRef, InsnBuilder, InsnBuilderExt, IntoOperand, ItemRef, Label, LabelRefDataItemRef,
+    MemOp, Operand, ProtoItemRef, RefDataItemRef, Reg, Ty, Val,
 };
 
 mod codegen;
@@ -193,6 +194,10 @@ impl<'ctx> MirModuleBuilder<'ctx> {
         }
     }
 
+    fn as_raw_ctx(&self) -> *mut ffi::MIR_context {
+        self.ctx.ctx.as_ptr()
+    }
+
     pub fn add_proto(&self, name: &CStr, rets: &[Ty], args: &[(&CStr, Ty)]) -> ProtoItemRef<'_> {
         let c_args = args
             .iter()
@@ -205,7 +210,7 @@ impl<'ctx> MirModuleBuilder<'ctx> {
             .collect::<Vec<_>>();
         let item = unsafe {
             ItemRef::from_raw(ffi::MIR_new_proto_arr(
-                self.ctx.ctx.as_ptr(),
+                self.as_raw_ctx(),
                 name.as_ptr(),
                 rets.len(),
                 rets.as_ptr().cast::<ffi::MIR_type_t>().cast_mut(),
@@ -218,8 +223,90 @@ impl<'ctx> MirModuleBuilder<'ctx> {
 
     pub fn add_import(&self, name: &CStr) -> ImportItemRef<'_> {
         let item =
-            unsafe { ItemRef::from_raw(ffi::MIR_new_import(self.ctx.ctx.as_ptr(), name.as_ptr())) };
+            unsafe { ItemRef::from_raw(ffi::MIR_new_import(self.as_raw_ctx(), name.as_ptr())) };
         ImportItemRef(item)
+    }
+
+    pub fn add_export(&self, name: &CStr) -> ExportItemRef<'_> {
+        let item =
+            unsafe { ItemRef::from_raw(ffi::MIR_new_export(self.as_raw_ctx(), name.as_ptr())) };
+        ExportItemRef(item)
+    }
+
+    pub fn add_forward(&self, name: &CStr) -> ForwardItemRef<'_> {
+        let item =
+            unsafe { ItemRef::from_raw(ffi::MIR_new_forward(self.as_raw_ctx(), name.as_ptr())) };
+        ForwardItemRef(item)
+    }
+
+    pub fn add_data<'a>(&self, name: impl Into<Option<&'a CStr>>, data: &[u8]) -> DataItemRef<'_> {
+        unsafe {
+            DataItemRef(ItemRef::from_raw(ffi::MIR_new_data(
+                self.as_raw_ctx(),
+                name.into().map_or(null(), |s| s.as_ptr()),
+                Ty::U8.0,
+                data.len(),
+                data.as_ptr().cast(),
+            )))
+        }
+    }
+
+    pub fn add_ref_data<'a>(
+        &self,
+        name: impl Into<Option<&'a CStr>>,
+        ref_item: ItemRef<'_>,
+        disp: i64,
+    ) -> RefDataItemRef<'_> {
+        unsafe {
+            RefDataItemRef(ItemRef::from_raw(ffi::MIR_new_ref_data(
+                self.as_raw_ctx(),
+                name.into().map_or(null(), |s| s.as_ptr()),
+                ref_item.as_raw(),
+                disp,
+            )))
+        }
+    }
+
+    pub fn add_expr_data<'a>(
+        &self,
+        name: impl Into<Option<&'a CStr>>,
+        expr_func: FuncItemRef<'_>,
+    ) -> ExprDataItemRef<'_> {
+        unsafe {
+            ExprDataItemRef(ItemRef::from_raw(ffi::MIR_new_expr_data(
+                self.as_raw_ctx(),
+                name.into().map_or(null(), |s| s.as_ptr()),
+                expr_func.as_raw(),
+            )))
+        }
+    }
+
+    pub fn add_label_ref_data<'a>(
+        &self,
+        name: impl Into<Option<&'a CStr>>,
+        label: Label<'_>,
+        base_label: Option<Label<'_>>,
+        disp: i64,
+    ) -> LabelRefDataItemRef<'_> {
+        unsafe {
+            LabelRefDataItemRef(ItemRef::from_raw(ffi::MIR_new_lref_data(
+                self.as_raw_ctx(),
+                name.into().map_or(null(), |s| s.as_ptr()),
+                label.0,
+                base_label.map_or(null_mut(), |lbl| lbl.0),
+                disp,
+            )))
+        }
+    }
+
+    pub fn add_bss<'a>(&self, name: impl Into<Option<&'a CStr>>, len: usize) -> BssItemRef<'_> {
+        unsafe {
+            BssItemRef(ItemRef::from_raw(ffi::MIR_new_bss(
+                self.as_raw_ctx(),
+                name.into().map_or(null(), |s| s.as_ptr()),
+                len,
+            )))
+        }
     }
 
     pub fn enter_new_function(
@@ -243,7 +330,7 @@ impl<'ctx> MirModuleBuilder<'ctx> {
             .collect::<Vec<_>>();
         let func_item = unsafe {
             ffi::MIR_new_func_arr(
-                self.ctx.ctx.as_ptr(),
+                self.as_raw_ctx(),
                 name.as_ptr(),
                 rets.len(),
                 rets.as_ptr().cast::<ffi::MIR_type_t>().cast_mut(),

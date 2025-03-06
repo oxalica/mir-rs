@@ -62,6 +62,8 @@ fn generate() {
         // Manual tweaks.
         .blocklist_type("MIR_mem_t|MIR_op_t.*|MIR_insn")
         .raw_line("use super::{MIR_op_t, MIR_insn};")
+        .override_abi(bindgen::Abi::CUnwind, ".*")
+        .merge_extern_blocks(true)
         // See above.
         .clang_arg("-mlong-double-64")
         .prepend_enum_name(false)
@@ -78,6 +80,8 @@ fn generate() {
         .allowlist_function("MIR_gen.*|MIR_set.*gen_interface")
         .raw_line("use super::*;")
         .raw_line("use libc::FILE;")
+        .override_abi(bindgen::Abi::CUnwind, ".*")
+        .merge_extern_blocks(true)
         // See above.
         .clang_arg("-mlong-double-64")
         .generate()

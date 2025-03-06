@@ -28,7 +28,7 @@ impl Default for MirContext {
     }
 }
 
-unsafe extern "C" {
+unsafe extern "C-unwind" {
     fn MIRRS_error_handler_trampoline(
         error_type: ffi::MIR_error_type_t,
         format: *const c_char,
@@ -37,7 +37,7 @@ unsafe extern "C" {
 }
 
 #[unsafe(no_mangle)]
-unsafe extern "C" fn MIRRS_error_handler_rust(
+unsafe extern "C-unwind" fn MIRRS_error_handler_rust(
     error_type: ffi::MIR_error_type_t,
     msg: *const u8,
     len: usize,
@@ -88,14 +88,16 @@ impl MirContext {
     /// `resolver` must return valid function pointers with matching prototype.
     pub(crate) unsafe fn link_modules(
         &self,
-        set_interface: Option<unsafe extern "C" fn(ctx: ffi::MIR_context_t, item: ffi::MIR_item_t)>,
+        set_interface: Option<
+            unsafe extern "C-unwind" fn(ctx: ffi::MIR_context_t, item: ffi::MIR_item_t),
+        >,
         resolver: Option<&ImportResolver>,
     ) {
         thread_local! {
             static RESOLVER_CALLBACK: Cell<Option<NonNull<ImportResolver>>> = const { Cell::new(None) };
         }
 
-        unsafe extern "C" fn trampoline(name: *const c_char) -> *mut c_void {
+        unsafe extern "C-unwind" fn trampoline(name: *const c_char) -> *mut c_void {
             RESOLVER_CALLBACK.with(|cb| {
                 let cb = unsafe { cb.get().expect("resolver must be set").as_ref() };
                 cb(unsafe { CStr::from_ptr(name) })
@@ -160,8 +162,12 @@ impl MirFuncItem<'_> {
 
 impl Drop for MirContext {
     fn drop(&mut self) {
+        if std::thread::panicking() {
+            // MIR_finish* may fail. Avoid double-panicking when something already goes wrong.
+            return;
+        }
+
         if self.func_item.get().is_some() {
-            // FIXME: This may fail.
             unsafe { ffi::MIR_finish_func(self.ctx.as_ptr()) };
         }
         if self.module.get().is_some() {

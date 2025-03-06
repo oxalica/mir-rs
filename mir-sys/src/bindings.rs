@@ -46,7 +46,7 @@ pub const MIR_ctx_change_error: MIR_error_type = 29;
 pub type MIR_error_type = ::std::os::raw::c_uint;
 pub use self::MIR_error_type as MIR_error_type_t;
 pub type MIR_error_func_t = ::std::option::Option<
-    unsafe extern "C" fn(
+    unsafe extern "C-unwind" fn(
         error_type: MIR_error_type_t,
         format: *const ::std::os::raw::c_char,
         ...
@@ -489,450 +489,6 @@ pub struct MIR_context {
     _unused: [u8; 0],
 }
 pub type MIR_context_t = *mut MIR_context;
-unsafe extern "C" {
-    pub fn _MIR_get_api_version() -> f64;
-}
-unsafe extern "C" {
-    pub fn _MIR_init() -> MIR_context_t;
-}
-unsafe extern "C" {
-    pub fn MIR_finish(ctx: MIR_context_t);
-}
-unsafe extern "C" {
-    pub fn MIR_new_module(ctx: MIR_context_t, name: *const ::std::os::raw::c_char) -> MIR_module_t;
-}
-unsafe extern "C" {
-    pub fn MIR_get_module_list(ctx: MIR_context_t) -> *mut DLIST_MIR_module_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_import(ctx: MIR_context_t, name: *const ::std::os::raw::c_char) -> MIR_item_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_export(ctx: MIR_context_t, name: *const ::std::os::raw::c_char) -> MIR_item_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_forward(ctx: MIR_context_t, name: *const ::std::os::raw::c_char) -> MIR_item_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_bss(
-        ctx: MIR_context_t,
-        name: *const ::std::os::raw::c_char,
-        len: usize,
-    ) -> MIR_item_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_data(
-        ctx: MIR_context_t,
-        name: *const ::std::os::raw::c_char,
-        el_type: MIR_type_t,
-        nel: usize,
-        els: *const ::std::os::raw::c_void,
-    ) -> MIR_item_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_string_data(
-        ctx: MIR_context_t,
-        name: *const ::std::os::raw::c_char,
-        str_: MIR_str_t,
-    ) -> MIR_item_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_ref_data(
-        ctx: MIR_context_t,
-        name: *const ::std::os::raw::c_char,
-        item: MIR_item_t,
-        disp: i64,
-    ) -> MIR_item_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_lref_data(
-        ctx: MIR_context_t,
-        name: *const ::std::os::raw::c_char,
-        label: MIR_label_t,
-        label2: MIR_label_t,
-        disp: i64,
-    ) -> MIR_item_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_expr_data(
-        ctx: MIR_context_t,
-        name: *const ::std::os::raw::c_char,
-        expr_item: MIR_item_t,
-    ) -> MIR_item_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_proto_arr(
-        ctx: MIR_context_t,
-        name: *const ::std::os::raw::c_char,
-        nres: usize,
-        res_types: *mut MIR_type_t,
-        nargs: usize,
-        vars: *mut MIR_var_t,
-    ) -> MIR_item_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_proto(
-        ctx: MIR_context_t,
-        name: *const ::std::os::raw::c_char,
-        nres: usize,
-        res_types: *mut MIR_type_t,
-        nargs: usize,
-        ...
-    ) -> MIR_item_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_vararg_proto_arr(
-        ctx: MIR_context_t,
-        name: *const ::std::os::raw::c_char,
-        nres: usize,
-        res_types: *mut MIR_type_t,
-        nargs: usize,
-        vars: *mut MIR_var_t,
-    ) -> MIR_item_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_vararg_proto(
-        ctx: MIR_context_t,
-        name: *const ::std::os::raw::c_char,
-        nres: usize,
-        res_types: *mut MIR_type_t,
-        nargs: usize,
-        ...
-    ) -> MIR_item_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_func_arr(
-        ctx: MIR_context_t,
-        name: *const ::std::os::raw::c_char,
-        nres: usize,
-        res_types: *mut MIR_type_t,
-        nargs: usize,
-        vars: *mut MIR_var_t,
-    ) -> MIR_item_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_func(
-        ctx: MIR_context_t,
-        name: *const ::std::os::raw::c_char,
-        nres: usize,
-        res_types: *mut MIR_type_t,
-        nargs: usize,
-        ...
-    ) -> MIR_item_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_vararg_func_arr(
-        ctx: MIR_context_t,
-        name: *const ::std::os::raw::c_char,
-        nres: usize,
-        res_types: *mut MIR_type_t,
-        nargs: usize,
-        vars: *mut MIR_var_t,
-    ) -> MIR_item_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_vararg_func(
-        ctx: MIR_context_t,
-        name: *const ::std::os::raw::c_char,
-        nres: usize,
-        res_types: *mut MIR_type_t,
-        nargs: usize,
-        ...
-    ) -> MIR_item_t;
-}
-unsafe extern "C" {
-    pub fn MIR_item_name(ctx: MIR_context_t, item: MIR_item_t) -> *const ::std::os::raw::c_char;
-}
-unsafe extern "C" {
-    pub fn MIR_get_item_func(ctx: MIR_context_t, item: MIR_item_t) -> MIR_func_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_func_reg(
-        ctx: MIR_context_t,
-        func: MIR_func_t,
-        type_: MIR_type_t,
-        name: *const ::std::os::raw::c_char,
-    ) -> MIR_reg_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_global_func_reg(
-        ctx: MIR_context_t,
-        func: MIR_func_t,
-        type_: MIR_type_t,
-        name: *const ::std::os::raw::c_char,
-        hard_reg_name: *const ::std::os::raw::c_char,
-    ) -> MIR_reg_t;
-}
-unsafe extern "C" {
-    pub fn MIR_finish_func(ctx: MIR_context_t);
-}
-unsafe extern "C" {
-    pub fn MIR_finish_module(ctx: MIR_context_t);
-}
-unsafe extern "C" {
-    pub fn MIR_get_error_func(ctx: MIR_context_t) -> MIR_error_func_t;
-}
-unsafe extern "C" {
-    pub fn MIR_set_error_func(ctx: MIR_context_t, func: MIR_error_func_t);
-}
-unsafe extern "C" {
-    pub fn MIR_get_func_redef_permission_p(ctx: MIR_context_t) -> ::std::os::raw::c_int;
-}
-unsafe extern "C" {
-    pub fn MIR_set_func_redef_permission(ctx: MIR_context_t, flag_p: ::std::os::raw::c_int);
-}
-unsafe extern "C" {
-    pub fn MIR_new_insn_arr(
-        ctx: MIR_context_t,
-        code: MIR_insn_code_t,
-        nops: usize,
-        ops: *mut MIR_op_t,
-    ) -> MIR_insn_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_insn(ctx: MIR_context_t, code: MIR_insn_code_t, ...) -> MIR_insn_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_call_insn(ctx: MIR_context_t, nops: usize, ...) -> MIR_insn_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_jcall_insn(ctx: MIR_context_t, nops: usize, ...) -> MIR_insn_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_ret_insn(ctx: MIR_context_t, nops: usize, ...) -> MIR_insn_t;
-}
-unsafe extern "C" {
-    pub fn MIR_copy_insn(ctx: MIR_context_t, insn: MIR_insn_t) -> MIR_insn_t;
-}
-unsafe extern "C" {
-    pub fn MIR_insn_name(
-        ctx: MIR_context_t,
-        code: MIR_insn_code_t,
-    ) -> *const ::std::os::raw::c_char;
-}
-unsafe extern "C" {
-    pub fn MIR_insn_nops(ctx: MIR_context_t, insn: MIR_insn_t) -> usize;
-}
-unsafe extern "C" {
-    pub fn MIR_insn_op_mode(
-        ctx: MIR_context_t,
-        insn: MIR_insn_t,
-        nop: usize,
-        out_p: *mut ::std::os::raw::c_int,
-    ) -> MIR_op_mode_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_label(ctx: MIR_context_t) -> MIR_insn_t;
-}
-unsafe extern "C" {
-    pub fn MIR_reg(
-        ctx: MIR_context_t,
-        reg_name: *const ::std::os::raw::c_char,
-        func: MIR_func_t,
-    ) -> MIR_reg_t;
-}
-unsafe extern "C" {
-    pub fn MIR_reg_type(ctx: MIR_context_t, reg: MIR_reg_t, func: MIR_func_t) -> MIR_type_t;
-}
-unsafe extern "C" {
-    pub fn MIR_reg_name(
-        ctx: MIR_context_t,
-        reg: MIR_reg_t,
-        func: MIR_func_t,
-    ) -> *const ::std::os::raw::c_char;
-}
-unsafe extern "C" {
-    pub fn MIR_reg_hard_reg_name(
-        ctx: MIR_context_t,
-        reg: MIR_reg_t,
-        func: MIR_func_t,
-    ) -> *const ::std::os::raw::c_char;
-}
-unsafe extern "C" {
-    pub fn MIR_alias_name(ctx: MIR_context_t, alias: MIR_alias_t) -> *const ::std::os::raw::c_char;
-}
-unsafe extern "C" {
-    pub fn MIR_alias(ctx: MIR_context_t, name: *const ::std::os::raw::c_char) -> MIR_alias_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_reg_op(ctx: MIR_context_t, reg: MIR_reg_t) -> MIR_op_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_int_op(ctx: MIR_context_t, v: i64) -> MIR_op_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_uint_op(ctx: MIR_context_t, v: u64) -> MIR_op_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_float_op(ctx: MIR_context_t, v: f32) -> MIR_op_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_double_op(ctx: MIR_context_t, v: f64) -> MIR_op_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_ldouble_op(ctx: MIR_context_t, v: f64) -> MIR_op_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_ref_op(ctx: MIR_context_t, item: MIR_item_t) -> MIR_op_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_str_op(ctx: MIR_context_t, str_: MIR_str_t) -> MIR_op_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_mem_op(
-        ctx: MIR_context_t,
-        type_: MIR_type_t,
-        disp: MIR_disp_t,
-        base: MIR_reg_t,
-        index: MIR_reg_t,
-        scale: MIR_scale_t,
-    ) -> MIR_op_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_alias_mem_op(
-        ctx: MIR_context_t,
-        type_: MIR_type_t,
-        disp: MIR_disp_t,
-        base: MIR_reg_t,
-        index: MIR_reg_t,
-        scale: MIR_scale_t,
-        alias: MIR_alias_t,
-        noalias: MIR_alias_t,
-    ) -> MIR_op_t;
-}
-unsafe extern "C" {
-    pub fn MIR_new_label_op(ctx: MIR_context_t, label: MIR_label_t) -> MIR_op_t;
-}
-unsafe extern "C" {
-    pub fn MIR_op_eq_p(ctx: MIR_context_t, op1: MIR_op_t, op2: MIR_op_t) -> ::std::os::raw::c_int;
-}
-unsafe extern "C" {
-    pub fn MIR_op_hash_step(ctx: MIR_context_t, h: htab_hash_t, op: MIR_op_t) -> htab_hash_t;
-}
-unsafe extern "C" {
-    pub fn MIR_append_insn(ctx: MIR_context_t, func: MIR_item_t, insn: MIR_insn_t);
-}
-unsafe extern "C" {
-    pub fn MIR_prepend_insn(ctx: MIR_context_t, func: MIR_item_t, insn: MIR_insn_t);
-}
-unsafe extern "C" {
-    pub fn MIR_insert_insn_after(
-        ctx: MIR_context_t,
-        func: MIR_item_t,
-        after: MIR_insn_t,
-        insn: MIR_insn_t,
-    );
-}
-unsafe extern "C" {
-    pub fn MIR_insert_insn_before(
-        ctx: MIR_context_t,
-        func: MIR_item_t,
-        before: MIR_insn_t,
-        insn: MIR_insn_t,
-    );
-}
-unsafe extern "C" {
-    pub fn MIR_remove_insn(ctx: MIR_context_t, func: MIR_item_t, insn: MIR_insn_t);
-}
-unsafe extern "C" {
-    pub fn MIR_change_module_ctx(old_ctx: MIR_context_t, m: MIR_module_t, new_ctx: MIR_context_t);
-}
-unsafe extern "C" {
-    pub fn MIR_reverse_branch_code(code: MIR_insn_code_t) -> MIR_insn_code_t;
-}
-unsafe extern "C" {
-    pub fn MIR_type_str(ctx: MIR_context_t, tp: MIR_type_t) -> *const ::std::os::raw::c_char;
-}
-unsafe extern "C" {
-    pub fn MIR_output_str(ctx: MIR_context_t, f: *mut FILE, str_: MIR_str_t);
-}
-unsafe extern "C" {
-    pub fn MIR_output_op(ctx: MIR_context_t, f: *mut FILE, op: MIR_op_t, func: MIR_func_t);
-}
-unsafe extern "C" {
-    pub fn MIR_output_insn(
-        ctx: MIR_context_t,
-        f: *mut FILE,
-        insn: MIR_insn_t,
-        func: MIR_func_t,
-        newline_p: ::std::os::raw::c_int,
-    );
-}
-unsafe extern "C" {
-    pub fn MIR_output_item(ctx: MIR_context_t, f: *mut FILE, item: MIR_item_t);
-}
-unsafe extern "C" {
-    pub fn MIR_output_module(ctx: MIR_context_t, f: *mut FILE, module: MIR_module_t);
-}
-unsafe extern "C" {
-    pub fn MIR_output(ctx: MIR_context_t, f: *mut FILE);
-}
-unsafe extern "C" {
-    pub fn MIR_write(ctx: MIR_context_t, f: *mut FILE);
-}
-unsafe extern "C" {
-    pub fn MIR_write_module(ctx: MIR_context_t, f: *mut FILE, module: MIR_module_t);
-}
-unsafe extern "C" {
-    pub fn MIR_read(ctx: MIR_context_t, f: *mut FILE);
-}
-unsafe extern "C" {
-    pub fn MIR_write_with_func(
-        ctx: MIR_context_t,
-        writer_func: ::std::option::Option<
-            unsafe extern "C" fn(arg1: MIR_context_t, arg2: u8) -> ::std::os::raw::c_int,
-        >,
-    );
-}
-unsafe extern "C" {
-    pub fn MIR_write_module_with_func(
-        ctx: MIR_context_t,
-        writer_func: ::std::option::Option<
-            unsafe extern "C" fn(arg1: MIR_context_t, arg2: u8) -> ::std::os::raw::c_int,
-        >,
-        module: MIR_module_t,
-    );
-}
-unsafe extern "C" {
-    pub fn MIR_read_with_func(
-        ctx: MIR_context_t,
-        reader_func: ::std::option::Option<
-            unsafe extern "C" fn(arg1: MIR_context_t) -> ::std::os::raw::c_int,
-        >,
-    );
-}
-unsafe extern "C" {
-    pub fn MIR_scan_string(ctx: MIR_context_t, str_: *const ::std::os::raw::c_char);
-}
-unsafe extern "C" {
-    pub fn MIR_get_global_item(
-        ctx: MIR_context_t,
-        name: *const ::std::os::raw::c_char,
-    ) -> MIR_item_t;
-}
-unsafe extern "C" {
-    pub fn MIR_load_module(ctx: MIR_context_t, m: MIR_module_t);
-}
-unsafe extern "C" {
-    pub fn MIR_load_external(
-        ctx: MIR_context_t,
-        name: *const ::std::os::raw::c_char,
-        addr: *mut ::std::os::raw::c_void,
-    );
-}
-unsafe extern "C" {
-    pub fn MIR_link(
-        ctx: MIR_context_t,
-        set_interface: ::std::option::Option<
-            unsafe extern "C" fn(ctx: MIR_context_t, item: MIR_item_t),
-        >,
-        import_resolver: ::std::option::Option<
-            unsafe extern "C" fn(
-                arg1: *const ::std::os::raw::c_char,
-            ) -> *mut ::std::os::raw::c_void,
-        >,
-    );
-}
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub union MIR_val_t {
@@ -944,7 +500,279 @@ pub union MIR_val_t {
     pub d: f64,
     pub ld: f64,
 }
-unsafe extern "C" {
+unsafe extern "C-unwind" {
+    pub fn _MIR_get_api_version() -> f64;
+    pub fn _MIR_init() -> MIR_context_t;
+    pub fn MIR_finish(ctx: MIR_context_t);
+    pub fn MIR_new_module(ctx: MIR_context_t, name: *const ::std::os::raw::c_char) -> MIR_module_t;
+    pub fn MIR_get_module_list(ctx: MIR_context_t) -> *mut DLIST_MIR_module_t;
+    pub fn MIR_new_import(ctx: MIR_context_t, name: *const ::std::os::raw::c_char) -> MIR_item_t;
+    pub fn MIR_new_export(ctx: MIR_context_t, name: *const ::std::os::raw::c_char) -> MIR_item_t;
+    pub fn MIR_new_forward(ctx: MIR_context_t, name: *const ::std::os::raw::c_char) -> MIR_item_t;
+    pub fn MIR_new_bss(
+        ctx: MIR_context_t,
+        name: *const ::std::os::raw::c_char,
+        len: usize,
+    ) -> MIR_item_t;
+    pub fn MIR_new_data(
+        ctx: MIR_context_t,
+        name: *const ::std::os::raw::c_char,
+        el_type: MIR_type_t,
+        nel: usize,
+        els: *const ::std::os::raw::c_void,
+    ) -> MIR_item_t;
+    pub fn MIR_new_string_data(
+        ctx: MIR_context_t,
+        name: *const ::std::os::raw::c_char,
+        str_: MIR_str_t,
+    ) -> MIR_item_t;
+    pub fn MIR_new_ref_data(
+        ctx: MIR_context_t,
+        name: *const ::std::os::raw::c_char,
+        item: MIR_item_t,
+        disp: i64,
+    ) -> MIR_item_t;
+    pub fn MIR_new_lref_data(
+        ctx: MIR_context_t,
+        name: *const ::std::os::raw::c_char,
+        label: MIR_label_t,
+        label2: MIR_label_t,
+        disp: i64,
+    ) -> MIR_item_t;
+    pub fn MIR_new_expr_data(
+        ctx: MIR_context_t,
+        name: *const ::std::os::raw::c_char,
+        expr_item: MIR_item_t,
+    ) -> MIR_item_t;
+    pub fn MIR_new_proto_arr(
+        ctx: MIR_context_t,
+        name: *const ::std::os::raw::c_char,
+        nres: usize,
+        res_types: *mut MIR_type_t,
+        nargs: usize,
+        vars: *mut MIR_var_t,
+    ) -> MIR_item_t;
+    pub fn MIR_new_proto(
+        ctx: MIR_context_t,
+        name: *const ::std::os::raw::c_char,
+        nres: usize,
+        res_types: *mut MIR_type_t,
+        nargs: usize,
+        ...
+    ) -> MIR_item_t;
+    pub fn MIR_new_vararg_proto_arr(
+        ctx: MIR_context_t,
+        name: *const ::std::os::raw::c_char,
+        nres: usize,
+        res_types: *mut MIR_type_t,
+        nargs: usize,
+        vars: *mut MIR_var_t,
+    ) -> MIR_item_t;
+    pub fn MIR_new_vararg_proto(
+        ctx: MIR_context_t,
+        name: *const ::std::os::raw::c_char,
+        nres: usize,
+        res_types: *mut MIR_type_t,
+        nargs: usize,
+        ...
+    ) -> MIR_item_t;
+    pub fn MIR_new_func_arr(
+        ctx: MIR_context_t,
+        name: *const ::std::os::raw::c_char,
+        nres: usize,
+        res_types: *mut MIR_type_t,
+        nargs: usize,
+        vars: *mut MIR_var_t,
+    ) -> MIR_item_t;
+    pub fn MIR_new_func(
+        ctx: MIR_context_t,
+        name: *const ::std::os::raw::c_char,
+        nres: usize,
+        res_types: *mut MIR_type_t,
+        nargs: usize,
+        ...
+    ) -> MIR_item_t;
+    pub fn MIR_new_vararg_func_arr(
+        ctx: MIR_context_t,
+        name: *const ::std::os::raw::c_char,
+        nres: usize,
+        res_types: *mut MIR_type_t,
+        nargs: usize,
+        vars: *mut MIR_var_t,
+    ) -> MIR_item_t;
+    pub fn MIR_new_vararg_func(
+        ctx: MIR_context_t,
+        name: *const ::std::os::raw::c_char,
+        nres: usize,
+        res_types: *mut MIR_type_t,
+        nargs: usize,
+        ...
+    ) -> MIR_item_t;
+    pub fn MIR_item_name(ctx: MIR_context_t, item: MIR_item_t) -> *const ::std::os::raw::c_char;
+    pub fn MIR_get_item_func(ctx: MIR_context_t, item: MIR_item_t) -> MIR_func_t;
+    pub fn MIR_new_func_reg(
+        ctx: MIR_context_t,
+        func: MIR_func_t,
+        type_: MIR_type_t,
+        name: *const ::std::os::raw::c_char,
+    ) -> MIR_reg_t;
+    pub fn MIR_new_global_func_reg(
+        ctx: MIR_context_t,
+        func: MIR_func_t,
+        type_: MIR_type_t,
+        name: *const ::std::os::raw::c_char,
+        hard_reg_name: *const ::std::os::raw::c_char,
+    ) -> MIR_reg_t;
+    pub fn MIR_finish_func(ctx: MIR_context_t);
+    pub fn MIR_finish_module(ctx: MIR_context_t);
+    pub fn MIR_get_error_func(ctx: MIR_context_t) -> MIR_error_func_t;
+    pub fn MIR_set_error_func(ctx: MIR_context_t, func: MIR_error_func_t);
+    pub fn MIR_get_func_redef_permission_p(ctx: MIR_context_t) -> ::std::os::raw::c_int;
+    pub fn MIR_set_func_redef_permission(ctx: MIR_context_t, flag_p: ::std::os::raw::c_int);
+    pub fn MIR_new_insn_arr(
+        ctx: MIR_context_t,
+        code: MIR_insn_code_t,
+        nops: usize,
+        ops: *mut MIR_op_t,
+    ) -> MIR_insn_t;
+    pub fn MIR_new_insn(ctx: MIR_context_t, code: MIR_insn_code_t, ...) -> MIR_insn_t;
+    pub fn MIR_new_call_insn(ctx: MIR_context_t, nops: usize, ...) -> MIR_insn_t;
+    pub fn MIR_new_jcall_insn(ctx: MIR_context_t, nops: usize, ...) -> MIR_insn_t;
+    pub fn MIR_new_ret_insn(ctx: MIR_context_t, nops: usize, ...) -> MIR_insn_t;
+    pub fn MIR_copy_insn(ctx: MIR_context_t, insn: MIR_insn_t) -> MIR_insn_t;
+    pub fn MIR_insn_name(
+        ctx: MIR_context_t,
+        code: MIR_insn_code_t,
+    ) -> *const ::std::os::raw::c_char;
+    pub fn MIR_insn_nops(ctx: MIR_context_t, insn: MIR_insn_t) -> usize;
+    pub fn MIR_insn_op_mode(
+        ctx: MIR_context_t,
+        insn: MIR_insn_t,
+        nop: usize,
+        out_p: *mut ::std::os::raw::c_int,
+    ) -> MIR_op_mode_t;
+    pub fn MIR_new_label(ctx: MIR_context_t) -> MIR_insn_t;
+    pub fn MIR_reg(
+        ctx: MIR_context_t,
+        reg_name: *const ::std::os::raw::c_char,
+        func: MIR_func_t,
+    ) -> MIR_reg_t;
+    pub fn MIR_reg_type(ctx: MIR_context_t, reg: MIR_reg_t, func: MIR_func_t) -> MIR_type_t;
+    pub fn MIR_reg_name(
+        ctx: MIR_context_t,
+        reg: MIR_reg_t,
+        func: MIR_func_t,
+    ) -> *const ::std::os::raw::c_char;
+    pub fn MIR_reg_hard_reg_name(
+        ctx: MIR_context_t,
+        reg: MIR_reg_t,
+        func: MIR_func_t,
+    ) -> *const ::std::os::raw::c_char;
+    pub fn MIR_alias_name(ctx: MIR_context_t, alias: MIR_alias_t) -> *const ::std::os::raw::c_char;
+    pub fn MIR_alias(ctx: MIR_context_t, name: *const ::std::os::raw::c_char) -> MIR_alias_t;
+    pub fn MIR_new_reg_op(ctx: MIR_context_t, reg: MIR_reg_t) -> MIR_op_t;
+    pub fn MIR_new_int_op(ctx: MIR_context_t, v: i64) -> MIR_op_t;
+    pub fn MIR_new_uint_op(ctx: MIR_context_t, v: u64) -> MIR_op_t;
+    pub fn MIR_new_float_op(ctx: MIR_context_t, v: f32) -> MIR_op_t;
+    pub fn MIR_new_double_op(ctx: MIR_context_t, v: f64) -> MIR_op_t;
+    pub fn MIR_new_ldouble_op(ctx: MIR_context_t, v: f64) -> MIR_op_t;
+    pub fn MIR_new_ref_op(ctx: MIR_context_t, item: MIR_item_t) -> MIR_op_t;
+    pub fn MIR_new_str_op(ctx: MIR_context_t, str_: MIR_str_t) -> MIR_op_t;
+    pub fn MIR_new_mem_op(
+        ctx: MIR_context_t,
+        type_: MIR_type_t,
+        disp: MIR_disp_t,
+        base: MIR_reg_t,
+        index: MIR_reg_t,
+        scale: MIR_scale_t,
+    ) -> MIR_op_t;
+    pub fn MIR_new_alias_mem_op(
+        ctx: MIR_context_t,
+        type_: MIR_type_t,
+        disp: MIR_disp_t,
+        base: MIR_reg_t,
+        index: MIR_reg_t,
+        scale: MIR_scale_t,
+        alias: MIR_alias_t,
+        noalias: MIR_alias_t,
+    ) -> MIR_op_t;
+    pub fn MIR_new_label_op(ctx: MIR_context_t, label: MIR_label_t) -> MIR_op_t;
+    pub fn MIR_op_eq_p(ctx: MIR_context_t, op1: MIR_op_t, op2: MIR_op_t) -> ::std::os::raw::c_int;
+    pub fn MIR_op_hash_step(ctx: MIR_context_t, h: htab_hash_t, op: MIR_op_t) -> htab_hash_t;
+    pub fn MIR_append_insn(ctx: MIR_context_t, func: MIR_item_t, insn: MIR_insn_t);
+    pub fn MIR_prepend_insn(ctx: MIR_context_t, func: MIR_item_t, insn: MIR_insn_t);
+    pub fn MIR_insert_insn_after(
+        ctx: MIR_context_t,
+        func: MIR_item_t,
+        after: MIR_insn_t,
+        insn: MIR_insn_t,
+    );
+    pub fn MIR_insert_insn_before(
+        ctx: MIR_context_t,
+        func: MIR_item_t,
+        before: MIR_insn_t,
+        insn: MIR_insn_t,
+    );
+    pub fn MIR_remove_insn(ctx: MIR_context_t, func: MIR_item_t, insn: MIR_insn_t);
+    pub fn MIR_change_module_ctx(old_ctx: MIR_context_t, m: MIR_module_t, new_ctx: MIR_context_t);
+    pub fn MIR_reverse_branch_code(code: MIR_insn_code_t) -> MIR_insn_code_t;
+    pub fn MIR_type_str(ctx: MIR_context_t, tp: MIR_type_t) -> *const ::std::os::raw::c_char;
+    pub fn MIR_output_str(ctx: MIR_context_t, f: *mut FILE, str_: MIR_str_t);
+    pub fn MIR_output_op(ctx: MIR_context_t, f: *mut FILE, op: MIR_op_t, func: MIR_func_t);
+    pub fn MIR_output_insn(
+        ctx: MIR_context_t,
+        f: *mut FILE,
+        insn: MIR_insn_t,
+        func: MIR_func_t,
+        newline_p: ::std::os::raw::c_int,
+    );
+    pub fn MIR_output_item(ctx: MIR_context_t, f: *mut FILE, item: MIR_item_t);
+    pub fn MIR_output_module(ctx: MIR_context_t, f: *mut FILE, module: MIR_module_t);
+    pub fn MIR_output(ctx: MIR_context_t, f: *mut FILE);
+    pub fn MIR_write(ctx: MIR_context_t, f: *mut FILE);
+    pub fn MIR_write_module(ctx: MIR_context_t, f: *mut FILE, module: MIR_module_t);
+    pub fn MIR_read(ctx: MIR_context_t, f: *mut FILE);
+    pub fn MIR_write_with_func(
+        ctx: MIR_context_t,
+        writer_func: ::std::option::Option<
+            unsafe extern "C-unwind" fn(arg1: MIR_context_t, arg2: u8) -> ::std::os::raw::c_int,
+        >,
+    );
+    pub fn MIR_write_module_with_func(
+        ctx: MIR_context_t,
+        writer_func: ::std::option::Option<
+            unsafe extern "C-unwind" fn(arg1: MIR_context_t, arg2: u8) -> ::std::os::raw::c_int,
+        >,
+        module: MIR_module_t,
+    );
+    pub fn MIR_read_with_func(
+        ctx: MIR_context_t,
+        reader_func: ::std::option::Option<
+            unsafe extern "C-unwind" fn(arg1: MIR_context_t) -> ::std::os::raw::c_int,
+        >,
+    );
+    pub fn MIR_scan_string(ctx: MIR_context_t, str_: *const ::std::os::raw::c_char);
+    pub fn MIR_get_global_item(
+        ctx: MIR_context_t,
+        name: *const ::std::os::raw::c_char,
+    ) -> MIR_item_t;
+    pub fn MIR_load_module(ctx: MIR_context_t, m: MIR_module_t);
+    pub fn MIR_load_external(
+        ctx: MIR_context_t,
+        name: *const ::std::os::raw::c_char,
+        addr: *mut ::std::os::raw::c_void,
+    );
+    pub fn MIR_link(
+        ctx: MIR_context_t,
+        set_interface: ::std::option::Option<
+            unsafe extern "C-unwind" fn(ctx: MIR_context_t, item: MIR_item_t),
+        >,
+        import_resolver: ::std::option::Option<
+            unsafe extern "C-unwind" fn(
+                arg1: *const ::std::os::raw::c_char,
+            ) -> *mut ::std::os::raw::c_void,
+        >,
+    );
     pub fn MIR_interp(
         ctx: MIR_context_t,
         func_item: MIR_item_t,
@@ -952,8 +780,6 @@ unsafe extern "C" {
         nargs: usize,
         ...
     );
-}
-unsafe extern "C" {
     pub fn MIR_interp_arr(
         ctx: MIR_context_t,
         func_item: MIR_item_t,
@@ -961,7 +787,5 @@ unsafe extern "C" {
         nargs: usize,
         vals: *mut MIR_val_t,
     );
-}
-unsafe extern "C" {
     pub fn MIR_set_interp_interface(ctx: MIR_context_t, func_item: MIR_item_t);
 }

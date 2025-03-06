@@ -5,9 +5,11 @@ use std::ptr::NonNull;
 
 use types::IntoOperands;
 
+pub use codegen::MirGenContext;
 pub use mir_sys as ffi;
 pub use types::{InstBuilder, IntoOperand, Operand, Reg, Ty, Val};
 
+mod codegen;
 mod types;
 
 #[derive(Debug)]

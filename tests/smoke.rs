@@ -10,7 +10,7 @@ fn init() {
 }
 
 fn build_add_module(ctx: &MirContext) -> (MirModuleRef<'_>, FuncItemRef<'_>) {
-    let mb = ctx.enter_new_module(c"module");
+    let mb = ctx.enter_new_module(c"add_module");
     let fb = mb.enter_new_function(c"add", &[Ty::I64], &[(c"a", Ty::I64), (c"b", Ty::I64)]);
     let a = fb.get_reg(c"a");
     let b = fb.get_reg(c"b");
@@ -53,10 +53,11 @@ fn add_gen() {
 
 #[test]
 fn add_serde() {
-    let (mod_bytes, ctx_bytes);
+    let (dump, mod_bytes, ctx_bytes);
     {
         let ctx = MirContext::new();
         let (module, _) = build_add_module(&ctx);
+        dump = ctx.dump();
         mod_bytes = module.serialize(&ctx);
         ctx_bytes = ctx.serialize();
     }
@@ -67,11 +68,30 @@ fn add_serde() {
         ctx_bytes.len()
     );
     assert_eq!(mod_bytes, ctx_bytes);
+    println!("Context dump:\n{dump}");
 
     {
         let ctx = MirContext::new();
         unsafe { ctx.deserialize(&mod_bytes) };
-        // TODO: Enumerate modules in context?
+        let dump2 = ctx.dump();
+        assert_eq!(dump, dump2);
+
+        let modules = ctx.get_modules();
+        assert_eq!(modules.len(), 1);
+        let m = modules[0];
+        assert_eq!(m.name(), c"add_module");
+
+        let items = m.get_items();
+        assert_eq!(items.len(), 1);
+        let f = items[0];
+        assert_eq!(f.name(), Some(c"add"));
+
+        let f = FuncItemRef::try_from(f).unwrap();
+        ctx.load_module(m);
+        ctx.link_modules_for_interpret();
+        let mut ret = [Val::default()];
+        unsafe { ctx.interpret_unchecked(f, &mut ret, &[40i64.into(), 2i64.into()]) };
+        assert_eq!(ret[0].as_i64(), 42);
     }
 }
 

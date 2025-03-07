@@ -81,6 +81,19 @@ impl MirContext {
         self.ctx.as_ptr()
     }
 
+    pub fn dump(&self) -> String {
+        MemoryFile::with(|file| unsafe { ffi::MIR_output(self.as_raw(), file) }).1
+    }
+
+    pub fn get_modules(&self) -> Vec<MirModuleRef<'_>> {
+        let head = unsafe { (*ffi::MIR_get_module_list(self.as_raw())).head };
+        std::iter::successors(NonNull::new(head), |m| unsafe {
+            NonNull::new(m.as_ref().module_link.next)
+        })
+        .map(|module| unsafe { MirModuleRef::from_raw(module.as_ptr()) })
+        .collect()
+    }
+
     pub fn serialize(&self) -> Vec<u8> {
         let mut buf = Vec::new();
         unsafe {
@@ -214,8 +227,28 @@ pub struct MirModuleRef<'ctx> {
 }
 
 impl MirModuleRef<'_> {
+    unsafe fn from_raw(raw: *mut ffi::MIR_module) -> Self {
+        Self {
+            module: NonNull::new(raw).expect("module must not be null"),
+            _marker: PhantomData,
+        }
+    }
+
     pub fn as_raw(&self) -> *mut ffi::MIR_module {
         self.module.as_ptr()
+    }
+
+    pub fn name(&self) -> &CStr {
+        unsafe { CStr::from_ptr(self.module.as_ref().name) }
+    }
+
+    pub fn get_items(&self) -> Vec<ItemRef<'_>> {
+        let head = unsafe { self.module.as_ref().items.head };
+        std::iter::successors(NonNull::new(head), |item| unsafe {
+            NonNull::new(item.as_ref().item_link.next)
+        })
+        .map(|item| unsafe { ItemRef::from_raw(item.as_ptr()) })
+        .collect()
     }
 
     pub fn dump(&self, ctx: &MirContext) -> String {
@@ -255,10 +288,7 @@ impl<'ctx> MirModuleBuilder<'ctx> {
     pub fn finish(self) -> MirModuleRef<'ctx> {
         let module = self.ctx.module.get().expect("must be inside a module");
         drop(self);
-        MirModuleRef {
-            module,
-            _marker: PhantomData,
-        }
+        unsafe { MirModuleRef::from_raw(module.as_ptr()) }
     }
 
     fn as_raw_ctx(&self) -> *mut ffi::MIR_context {

@@ -95,6 +95,35 @@ fn ty_debug() {
 #[repr(transparent)]
 pub struct Reg(pub(crate) ffi::MIR_reg_t);
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+#[repr(transparent)]
+pub struct ItemType(pub(crate) ffi::MIR_item_type_t);
+
+macro_rules! impl_item_type_variants {
+    ($($var:ident),* $(,)?) => {
+        impl ItemType {
+            $(pub const $var: Self = Self(paste!(ffi::[<MIR_ $var:lower _item>]));)*
+        }
+
+        impl fmt::Debug for ItemType {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                let s = match *self {
+                    $(Self::$var => paste!(concat!("ItemType(MIR_", stringify!($var:lower), "_item)")),)*
+                    Self(raw) => return f.debug_tuple("ItemType").field(&raw).finish(),
+                };
+                f.write_str(s)
+            }
+        }
+    };
+}
+
+impl_item_type_variants! {
+    FUNC, PROTO,
+    IMPORT, EXPORT, FORWARD,
+    DATA, REF_DATA, LREF_DATA, EXPR_DATA,
+    BSS,
+}
+
 #[derive(Clone, Copy)]
 #[repr(transparent)]
 pub struct ItemRef<'a>(
@@ -116,6 +145,35 @@ impl ItemRef<'_> {
         MemoryFile::with(|file| unsafe { ffi::MIR_output_item(ctx.as_raw(), file, self.as_raw()) })
             .1
     }
+
+    pub fn type_(&self) -> ItemType {
+        unsafe { ItemType(self.0.as_ref().item_type) }
+    }
+
+    pub fn name(&self) -> Option<&CStr> {
+        let item = unsafe { self.0.as_ref() };
+        let data = &item.u;
+        let ptr = unsafe {
+            match item.item_type {
+                ffi::MIR_func_item => (*data.func.cast::<FuncItemData>()).0.name,
+                ffi::MIR_proto_item => (*data.func.cast::<ProtoItemData>()).0.name,
+                ffi::MIR_import_item => data.import_id,
+                ffi::MIR_export_item => data.export_id,
+                ffi::MIR_forward_item => data.forward_id,
+                ffi::MIR_data_item => (*data.data.cast::<DataItemData>()).0.name,
+                ffi::MIR_ref_data_item => (*data.ref_data.cast::<RefDataItemData>()).0.name,
+                ffi::MIR_lref_data_item => (*data.lref_data.cast::<LabelRefDataItemData>()).0.name,
+                ffi::MIR_expr_data_item => (*data.expr_data.cast::<ExprDataItemData>()).0.name,
+                ffi::MIR_bss_item => (*data.bss.cast::<BssItemData>()).0.name,
+                _ => return None,
+            }
+        };
+        if ptr.is_null() {
+            None
+        } else {
+            unsafe { Some(CStr::from_ptr(ptr)) }
+        }
+    }
 }
 
 impl<'a> From<ItemRef<'a>> for Operand<'a> {
@@ -134,7 +192,7 @@ impl fmt::Debug for ItemRef<'_> {
         fs.field("ptr", &std::ptr::from_ref(self))
             .field("module", &item.module)
             .field("addr", &item.addr)
-            .field("type", &item.item_type);
+            .field("type", &self.type_());
         let data = &item.u;
         let mut cb = |data| {
             fs.field("u", data);
@@ -170,8 +228,19 @@ impl fmt::Debug for ItemRef<'_> {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct ItemRefDowncastError(());
+
+impl fmt::Display for ItemRefDowncastError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("item type mismatch")
+    }
+}
+
+impl std::error::Error for ItemRefDowncastError {}
+
 macro_rules! def_item_ref_variant {
-    ($name:ident) => {
+    ($name:ident, $item_type:expr) => {
         #[derive(Debug, Clone, Copy)]
         #[repr(transparent)]
         pub struct $name<'a>(pub(crate) ItemRef<'a>);
@@ -189,10 +258,21 @@ macro_rules! def_item_ref_variant {
                 item.0.into()
             }
         }
+
+        impl<'a> TryFrom<ItemRef<'a>> for $name<'a> {
+            type Error = ItemRefDowncastError;
+            fn try_from(item: ItemRef<'a>) -> Result<Self, Self::Error> {
+                if unsafe { item.0.as_ref().item_type } == $item_type {
+                    Ok(Self(item))
+                } else {
+                    Err(ItemRefDowncastError(()))
+                }
+            }
+        }
     };
 }
 
-def_item_ref_variant!(FuncItemRef);
+def_item_ref_variant!(FuncItemRef, ffi::MIR_func_item);
 
 impl FuncItemRef<'_> {
     /// # Safety
@@ -255,7 +335,7 @@ impl fmt::Debug for DebugVars {
     }
 }
 
-def_item_ref_variant!(ProtoItemRef);
+def_item_ref_variant!(ProtoItemRef, ffi::MIR_proto_item);
 
 #[repr(transparent)]
 struct ProtoItemData(ffi::MIR_proto);
@@ -273,9 +353,9 @@ impl fmt::Debug for ProtoItemData {
     }
 }
 
-def_item_ref_variant!(ImportItemRef);
-def_item_ref_variant!(ExportItemRef);
-def_item_ref_variant!(ForwardItemRef);
+def_item_ref_variant!(ImportItemRef, ffi::MIR_import_item);
+def_item_ref_variant!(ExportItemRef, ffi::MIR_export_item);
+def_item_ref_variant!(ForwardItemRef, ffi::MIR_forward_item);
 
 struct DebugImportLikeItemData(&'static str, &'static str, *const c_char);
 
@@ -287,7 +367,7 @@ impl fmt::Debug for DebugImportLikeItemData {
     }
 }
 
-def_item_ref_variant!(DataItemRef);
+def_item_ref_variant!(DataItemRef, ffi::MIR_data_item);
 
 #[repr(transparent)]
 struct DataItemData(ffi::MIR_data);
@@ -303,7 +383,7 @@ impl fmt::Debug for DataItemData {
     }
 }
 
-def_item_ref_variant!(RefDataItemRef);
+def_item_ref_variant!(RefDataItemRef, ffi::MIR_ref_data_item);
 
 #[repr(transparent)]
 struct RefDataItemData(ffi::MIR_ref_data);
@@ -320,7 +400,7 @@ impl fmt::Debug for RefDataItemData {
     }
 }
 
-def_item_ref_variant!(LabelRefDataItemRef);
+def_item_ref_variant!(LabelRefDataItemRef, ffi::MIR_lref_data_item);
 
 #[repr(transparent)]
 struct LabelRefDataItemData(ffi::MIR_lref_data);
@@ -336,7 +416,7 @@ impl fmt::Debug for LabelRefDataItemData {
     }
 }
 
-def_item_ref_variant!(ExprDataItemRef);
+def_item_ref_variant!(ExprDataItemRef, ffi::MIR_expr_data_item);
 
 #[repr(transparent)]
 struct ExprDataItemData(ffi::MIR_expr_data);
@@ -351,7 +431,7 @@ impl fmt::Debug for ExprDataItemData {
     }
 }
 
-def_item_ref_variant!(BssItemRef);
+def_item_ref_variant!(BssItemRef, ffi::MIR_bss_item);
 
 #[repr(transparent)]
 struct BssItemData(ffi::MIR_bss);

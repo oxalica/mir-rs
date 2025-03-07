@@ -19,11 +19,11 @@ scan = []
 __internal_generate_sys = ["dep:bindgen"]
 
 [dependencies]
-libc = "0.2.121"
+libc = "0.2"
 
 [build-dependencies]
-cc = "1.0.73"
-bindgen = { version = "0.71.0", optional = true }
+cc = "1.0.83"
+bindgen = { version = "0.71", optional = true }
 
 [dev-dependencies]
-expect-test = "1.5.1"
+expect-test = "1"

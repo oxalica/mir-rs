@@ -4,6 +4,8 @@
 
 [![crates.io](https://img.shields.io/crates/v/mir-rs)](https://crates.io/crates/mir-rs)
 [![docs.rs](https://img.shields.io/docsrs/mir-rs)][docs]
+[![CI Status](https://github.com/oxalica/mir-rs/actions/workflows/ci.yaml/badge.svg)](https://github.com/oxalica/mir-rs/actions/workflows/ci.yaml)
+
 
 See [documentation][docs] for more details.
 

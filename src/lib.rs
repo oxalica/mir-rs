@@ -60,7 +60,7 @@ unsafe extern "C-unwind" fn read_byte_callback(data: *mut libc::c_void) -> libc:
     match data.split_first() {
         Some((byte, rest)) => {
             *data = rest;
-            *byte as _
+            (*byte).into()
         }
         None => libc::EOF,
     }
@@ -69,6 +69,7 @@ unsafe extern "C-unwind" fn read_byte_callback(data: *mut libc::c_void) -> libc:
 type ImportResolver = dyn Fn(&CStr) -> *mut c_void;
 
 impl MirContext {
+    #[expect(clippy::missing_panics_doc, reason = "assertion")]
     pub fn new() -> Self {
         let ctx = ffi::MIR_init();
         unsafe { ffi::MIR_set_error_func(ctx, Some(MIRRS_error_handler_trampoline)) };
@@ -104,8 +105,8 @@ impl MirContext {
                 self.as_raw(),
                 Some(write_byte_callback),
                 ptr::from_mut(&mut buf).cast(),
-            )
-        };
+            );
+        }
         buf
     }
 
@@ -203,8 +204,8 @@ impl MirContext {
                 results.as_mut_ptr().cast::<ffi::MIR_val_t>(),
                 args.len(),
                 args.as_ptr().cast::<ffi::MIR_val_t>().cast_mut(),
-            )
-        };
+            );
+        }
     }
 }
 
@@ -239,14 +240,17 @@ impl MirModuleRef<'_> {
         }
     }
 
+    #[must_use]
     pub fn as_raw(&self) -> *mut ffi::MIR_module {
         self.module.as_ptr()
     }
 
+    #[must_use]
     pub fn name(&self) -> &CStr {
         unsafe { CStr::from_ptr(self.module.as_ref().name) }
     }
 
+    #[must_use]
     pub fn get_items(&self) -> Vec<ItemRef<'_>> {
         let head = unsafe { self.module.as_ref().items.head };
         std::iter::successors(NonNull::new(head), |item| unsafe {
@@ -258,7 +262,7 @@ impl MirModuleRef<'_> {
 
     pub fn dump(&self, ctx: &MirContext) -> String {
         MemoryFile::with(|file| unsafe {
-            ffi::MIR_output_module(ctx.as_raw(), file, self.as_raw())
+            ffi::MIR_output_module(ctx.as_raw(), file, self.as_raw());
         })
         .1
     }
@@ -272,8 +276,8 @@ impl MirModuleRef<'_> {
                 Some(write_byte_callback),
                 self.as_raw(),
                 ptr::from_mut(&mut buf).cast(),
-            )
-        };
+            );
+        }
         buf
     }
 }
@@ -291,6 +295,7 @@ impl Drop for MirModuleBuilder<'_> {
 }
 
 impl<'ctx> MirModuleBuilder<'ctx> {
+    #[expect(clippy::must_use_candidate, reason = "can be ignored")]
     pub fn finish(self) -> MirModuleRef<'ctx> {
         let module = self.ctx.module.get().expect("must be inside a module");
         drop(self);
@@ -301,6 +306,7 @@ impl<'ctx> MirModuleBuilder<'ctx> {
         self.ctx.as_raw()
     }
 
+    #[must_use]
     pub fn add_proto(&self, name: &CStr, rets: &[Ty], args: &[(&CStr, Ty)]) -> ProtoItemRef<'_> {
         let c_args = args
             .iter()
@@ -324,18 +330,21 @@ impl<'ctx> MirModuleBuilder<'ctx> {
         ProtoItemRef(item)
     }
 
+    #[must_use]
     pub fn add_import(&self, name: &CStr) -> ImportItemRef<'_> {
         let item =
             unsafe { ItemRef::from_raw(ffi::MIR_new_import(self.as_raw_ctx(), name.as_ptr())) };
         ImportItemRef(item)
     }
 
+    #[expect(clippy::must_use_candidate, reason = "can be ignored")]
     pub fn add_export(&self, name: &CStr) -> ExportItemRef<'_> {
         let item =
             unsafe { ItemRef::from_raw(ffi::MIR_new_export(self.as_raw_ctx(), name.as_ptr())) };
         ExportItemRef(item)
     }
 
+    #[expect(clippy::must_use_candidate, reason = "can be ignored")]
     pub fn add_forward(&self, name: &CStr) -> ForwardItemRef<'_> {
         let item =
             unsafe { ItemRef::from_raw(ffi::MIR_new_forward(self.as_raw_ctx(), name.as_ptr())) };
@@ -346,7 +355,7 @@ impl<'ctx> MirModuleBuilder<'ctx> {
         unsafe {
             DataItemRef(ItemRef::from_raw(ffi::MIR_new_data(
                 self.as_raw_ctx(),
-                name.into().map_or(null(), |s| s.as_ptr()),
+                name.into().map_or(null(), CStr::as_ptr),
                 Ty::U8.0,
                 data.len(),
                 data.as_ptr().cast(),
@@ -363,13 +372,14 @@ impl<'ctx> MirModuleBuilder<'ctx> {
         unsafe {
             RefDataItemRef(ItemRef::from_raw(ffi::MIR_new_ref_data(
                 self.as_raw_ctx(),
-                name.into().map_or(null(), |s| s.as_ptr()),
+                name.into().map_or(null(), CStr::as_ptr),
                 ref_item.as_raw(),
                 disp,
             )))
         }
     }
 
+    #[must_use]
     pub fn add_expr_data<'a>(
         &self,
         name: impl Into<Option<&'a CStr>>,
@@ -378,12 +388,13 @@ impl<'ctx> MirModuleBuilder<'ctx> {
         unsafe {
             ExprDataItemRef(ItemRef::from_raw(ffi::MIR_new_expr_data(
                 self.as_raw_ctx(),
-                name.into().map_or(null(), |s| s.as_ptr()),
+                name.into().map_or(null(), CStr::as_ptr),
                 expr_func.as_raw(),
             )))
         }
     }
 
+    #[must_use]
     pub fn add_label_ref_data<'a>(
         &self,
         name: impl Into<Option<&'a CStr>>,
@@ -394,7 +405,7 @@ impl<'ctx> MirModuleBuilder<'ctx> {
         unsafe {
             LabelRefDataItemRef(ItemRef::from_raw(ffi::MIR_new_lref_data(
                 self.as_raw_ctx(),
-                name.into().map_or(null(), |s| s.as_ptr()),
+                name.into().map_or(null(), CStr::as_ptr),
                 label.0,
                 base_label.map_or(null_mut(), |lbl| lbl.0),
                 disp,
@@ -402,16 +413,18 @@ impl<'ctx> MirModuleBuilder<'ctx> {
         }
     }
 
+    #[must_use]
     pub fn add_bss<'a>(&self, name: impl Into<Option<&'a CStr>>, len: usize) -> BssItemRef<'_> {
         unsafe {
             BssItemRef(ItemRef::from_raw(ffi::MIR_new_bss(
                 self.as_raw_ctx(),
-                name.into().map_or(null(), |s| s.as_ptr()),
+                name.into().map_or(null(), CStr::as_ptr),
                 len,
             )))
         }
     }
 
+    #[must_use]
     pub fn enter_new_function(
         &'_ self,
         name: &CStr,
@@ -471,17 +484,20 @@ impl Drop for MirFuncBuilder<'_, '_> {
 }
 
 impl<'ctx> MirFuncBuilder<'_, 'ctx> {
+    #[expect(clippy::must_use_candidate, reason = "can be ignored")]
     pub fn finish(self) -> FuncItemRef<'ctx> {
         let func_item = self.ctx.func_item.get().expect("must be inside a function");
         drop(self);
         FuncItemRef(ItemRef(func_item, PhantomData))
     }
 
+    #[must_use]
     pub fn get_reg(&self, name: &CStr) -> Reg {
         let reg = unsafe { ffi::MIR_reg(self.ctx.ctx.as_ptr(), name.as_ptr(), self.func.as_ptr()) };
         Reg(reg)
     }
 
+    #[must_use]
     pub fn new_local_reg(&self, name: &CStr, ty: Ty) -> Reg {
         let reg = unsafe {
             ffi::MIR_new_func_reg(
@@ -494,11 +510,13 @@ impl<'ctx> MirFuncBuilder<'_, 'ctx> {
         Reg(reg)
     }
 
+    #[must_use]
     pub fn new_label(&self) -> Label<'_> {
         let insn = unsafe { ffi::MIR_new_label(self.ctx.ctx.as_ptr()) };
         Label(insn, PhantomData)
     }
 
+    #[must_use]
     pub fn ins(&self) -> FuncInstBuilder<'_, 'ctx> {
         FuncInstBuilder {
             ctx: self.ctx,

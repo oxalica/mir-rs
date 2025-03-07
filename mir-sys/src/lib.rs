@@ -1,9 +1,11 @@
 #![expect(non_upper_case_globals, non_camel_case_types)]
 
 #[rustfmt::skip]
+#[expect(clippy::unreadable_literal)]
 mod bindings;
 
 #[rustfmt::skip]
+#[expect(clippy::wildcard_imports)]
 mod bindings_gen;
 
 pub use bindings::*;
@@ -65,8 +67,11 @@ pub struct MIR_insn {
     pub ops: [MIR_op_t; 1usize],
 }
 
-#[allow(non_snake_case)]
+#[expect(non_snake_case)]
+#[expect(clippy::used_underscore_items)]
+#[expect(clippy::float_cmp)]
 #[inline]
+#[must_use]
 pub fn MIR_init() -> MIR_context_t {
     debug_assert_eq!(MIR_API_VERSION, unsafe { _MIR_get_api_version() });
     unsafe { _MIR_init() }

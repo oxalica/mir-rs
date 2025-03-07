@@ -41,9 +41,10 @@ macro_rules! impl_val_variant {
         impl Val {
             paste! {
                 $(
-                pub fn [<as_ $ty>](self) -> $ty {
-                    unsafe { self.0.$name }
-                }
+                    #[must_use]
+                    pub fn [<as_ $ty>](self) -> $ty {
+                        unsafe { self.0.$name }
+                    }
                 )*
             }
         }
@@ -137,6 +138,7 @@ impl ItemRef<'_> {
         Self(raw, PhantomData)
     }
 
+    #[must_use]
     pub fn as_raw(&self) -> *mut ffi::MIR_item {
         self.0.as_ptr()
     }
@@ -146,10 +148,12 @@ impl ItemRef<'_> {
             .1
     }
 
+    #[must_use]
     pub fn type_(&self) -> ItemType {
         unsafe { ItemType(self.0.as_ref().item_type) }
     }
 
+    #[must_use]
     pub fn name(&self) -> Option<&CStr> {
         let item = unsafe { self.0.as_ref() };
         let data = &item.u;
@@ -218,7 +222,7 @@ impl fmt::Debug for ItemRef<'_> {
             ffi::MIR_data_item => cb(unsafe { &*data.data.cast::<DataItemData>() }),
             ffi::MIR_ref_data_item => cb(unsafe { &*data.ref_data.cast::<RefDataItemData>() }),
             ffi::MIR_lref_data_item => {
-                cb(unsafe { &*data.lref_data.cast::<LabelRefDataItemData>() })
+                cb(unsafe { &*data.lref_data.cast::<LabelRefDataItemData>() });
             }
             ffi::MIR_expr_data_item => cb(unsafe { &*data.expr_data.cast::<ExprDataItemData>() }),
             ffi::MIR_bss_item => cb(unsafe { &*data.bss.cast::<BssItemData>() }),
@@ -494,6 +498,7 @@ pub struct MemOp {
 }
 
 impl MemOp {
+    #[must_use]
     pub fn new_base(ty: Ty, base: Reg) -> Self {
         Self {
             ty,
@@ -504,14 +509,17 @@ impl MemOp {
         }
     }
 
+    #[must_use]
     pub fn disp(self, disp: i64) -> Self {
         Self { disp, ..self }
     }
 
+    #[must_use]
     pub fn index(self, index: Reg) -> Self {
         Self { index, ..self }
     }
 
+    #[must_use]
     pub fn scale(self, scale: u8) -> Self {
         assert!(matches!(scale, 1 | 2 | 4 | 8), "scale must be 1, 2, 4 or 8");
         Self { scale, ..self }
@@ -689,7 +697,7 @@ pub trait InsnBuilder<'func>: InsnBuilderBase<'func> {
         bge, bges, ubge, ubges, fbge, dbge, // ldbge
     }
     fn laddr<'o>(self, dst: impl IntoOutOperand<'o>, label: Label<'_>) {
-        build_insn(self, ffi::MIR_LADDR, [dst.into(), label.into()])
+        build_insn(self, ffi::MIR_LADDR, [dst.into(), label.into()]);
     }
 
     // Call and return.

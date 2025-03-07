@@ -113,7 +113,7 @@ fn add_gen() {
 
             // Link modules.
             MIR_load_module(ctx, module);
-            MIR_link(ctx, Some(MIR_set_gen_interface), None);
+            MIR_link(ctx, Some(MIR_set_gen_interface), None, std::ptr::null_mut());
 
             let func_ptr = MIR_gen(ctx, func_item);
             std::mem::transmute::<*mut libc::c_void, extern "C" fn(i64, i64) -> i64>(func_ptr)

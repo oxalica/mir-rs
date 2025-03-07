@@ -13,9 +13,7 @@ fn main() {
     let mut build = cc::Build::new();
 
     if env::var("DEBUG").unwrap() == "false" {
-        build.define("NDEBUG", "1");
-        // WAIT: <https://github.com/vnmakarov/mir/pull/418>
-        // build.define("MIR_NO_GEN_DEBUG", "1");
+        build.define("NDEBUG", "1").define("MIR_NO_GEN_DEBUG", "1");
     }
 
     // See: <https://github.com/vnmakarov/mir/blob/v1.0.0/GNUmakefile#L61>

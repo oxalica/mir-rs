@@ -91,26 +91,23 @@ impl MirContext {
         >,
         resolver: Option<&ImportResolver>,
     ) {
-        thread_local! {
-            static RESOLVER_CALLBACK: Cell<Option<NonNull<ImportResolver>>> = const { Cell::new(None) };
+        unsafe extern "C-unwind" fn trampoline(
+            data: *mut c_void,
+            name: *const c_char,
+        ) -> *mut c_void {
+            let name = unsafe { CStr::from_ptr(name) };
+            unsafe { (*data.cast::<&ImportResolver>())(name) }
         }
 
-        unsafe extern "C-unwind" fn trampoline(name: *const c_char) -> *mut c_void {
-            RESOLVER_CALLBACK.with(|cb| {
-                let cb = unsafe { cb.get().expect("resolver must be set").as_ref() };
-                cb(unsafe { CStr::from_ptr(name) })
-            })
-        }
-
-        match resolver {
-            Some(resolver) => RESOLVER_CALLBACK.with(|cb| {
-                assert!(cb.get().is_none(), "cannot link recursively");
-                cb.set(Some(NonNull::from(resolver)));
-                unsafe { ffi::MIR_link(self.as_raw(), set_interface, Some(trampoline)) };
-                cb.set(None);
-            }),
-            None => unsafe { ffi::MIR_link(self.as_raw(), set_interface, None) },
-        }
+        let (resolver, arg) = match resolver {
+            Some(resolver) => (
+                Some(trampoline as _),
+                // NB. Pointer to fat reference to dyn Fn.
+                std::ptr::from_ref(&resolver).cast_mut().cast(),
+            ),
+            None => (None, null_mut()),
+        };
+        unsafe { ffi::MIR_link(self.as_raw(), set_interface, resolver, arg) }
     }
 
     pub fn link_modules_for_interpret(&self) {

@@ -735,21 +735,30 @@ unsafe extern "C-unwind" {
     pub fn MIR_write_with_func(
         ctx: MIR_context_t,
         writer_func: ::std::option::Option<
-            unsafe extern "C-unwind" fn(arg1: MIR_context_t, arg2: u8) -> ::std::os::raw::c_int,
+            unsafe extern "C-unwind" fn(
+                arg1: *mut ::std::os::raw::c_void,
+                arg2: u8,
+            ) -> ::std::os::raw::c_int,
         >,
+        writer_arg: *mut ::std::os::raw::c_void,
     );
     pub fn MIR_write_module_with_func(
         ctx: MIR_context_t,
         writer_func: ::std::option::Option<
-            unsafe extern "C-unwind" fn(arg1: MIR_context_t, arg2: u8) -> ::std::os::raw::c_int,
+            unsafe extern "C-unwind" fn(
+                arg1: *mut ::std::os::raw::c_void,
+                arg2: u8,
+            ) -> ::std::os::raw::c_int,
         >,
         module: MIR_module_t,
+        writer_arg: *mut ::std::os::raw::c_void,
     );
     pub fn MIR_read_with_func(
         ctx: MIR_context_t,
         reader_func: ::std::option::Option<
-            unsafe extern "C-unwind" fn(arg1: MIR_context_t) -> ::std::os::raw::c_int,
+            unsafe extern "C-unwind" fn(arg1: *mut ::std::os::raw::c_void) -> ::std::os::raw::c_int,
         >,
+        reader_arg: *mut ::std::os::raw::c_void,
     );
     pub fn MIR_scan_string(ctx: MIR_context_t, str_: *const ::std::os::raw::c_char);
     pub fn MIR_get_global_item(
@@ -769,9 +778,11 @@ unsafe extern "C-unwind" {
         >,
         import_resolver: ::std::option::Option<
             unsafe extern "C-unwind" fn(
-                arg1: *const ::std::os::raw::c_char,
+                arg1: *mut ::std::os::raw::c_void,
+                arg2: *const ::std::os::raw::c_char,
             ) -> *mut ::std::os::raw::c_void,
         >,
+        resolver_arg: *mut ::std::os::raw::c_void,
     );
     pub fn MIR_interp(
         ctx: MIR_context_t,

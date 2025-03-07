@@ -4,6 +4,10 @@ use mir_sys::*;
 
 #[test]
 fn init() {
+    #[expect(clippy::float_cmp)]
+    {
+        assert_eq!(unsafe { _MIR_get_api_version() }, -1.0);
+    }
     unsafe {
         let ctx = MIR_init();
         MIR_finish(ctx);

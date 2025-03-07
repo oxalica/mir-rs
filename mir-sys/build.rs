@@ -1,5 +1,5 @@
 // NB: Sync with git submodule.
-const GIT_COMMIT: &str = "v1.0.0";
+const GIT_COMMIT: &str = "e812cfb5d1325a19c532febe96bee2cdba217171";
 
 fn main() {
     println!("cargo::rerun-if-changed=mir");

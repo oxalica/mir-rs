@@ -3,7 +3,7 @@
 use libc::FILE;
 use super::{MIR_op_t, MIR_insn};
 
-pub const MIR_API_VERSION: f64 = 0.2;
+pub const MIR_API_VERSION: f64 = -1.0;
 pub const MIR_NO_IO: u32 = 0;
 pub const MIR_NO_SCAN: u32 = 0;
 pub const MIR_BLK_NUM: u32 = 5;

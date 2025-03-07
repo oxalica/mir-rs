@@ -14,8 +14,11 @@ exclude = ["/mir/*-tests", "/mir/*-benchmarks"] # Keep the package small.
 name = "mir"
 
 [features]
-default = ["io"]
+default = ["io", "interp", "gen"]
 io = ["mir-sys/io"]
+interp = ["mir-sys/interp"]
+gen = ["mir-sys/gen"]
+gen-debug = ["gen", "mir-sys/gen-debug"]
 
 [dependencies]
 libc = "0.2.75"

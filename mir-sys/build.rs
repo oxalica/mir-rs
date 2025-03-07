@@ -1,5 +1,3 @@
-use std::env;
-
 // NB: Sync with git submodule.
 const GIT_COMMIT: &str = "v1.0.0";
 
@@ -8,14 +6,23 @@ fn main() {
 
     let mut build = cc::Build::new();
 
-    if env::var("DEBUG").unwrap() == "false" {
-        build.define("NDEBUG", "1").define("MIR_NO_GEN_DEBUG", "1");
-    }
     if !cfg!(feature = "io") {
         build.define("MIR_NO_IO", "1");
     }
     if !cfg!(feature = "scan") {
         build.define("MIR_NO_SCAN", "1");
+    }
+    if !cfg!(feature = "interp") {
+        build.define("MIR_NO_INTERP", "1");
+    }
+    if cfg!(feature = "gen") {
+        build.file("mir/mir-gen.c");
+        if !cfg!(feature = "gen-debug") {
+            build.define("MIR_NO_GEN_DEBUG", "1");
+        }
+    }
+    if !cfg!(feature = "assert") && !cfg!(debug_assertions) {
+        build.define("NDEBUG", "1");
     }
 
     // See: <https://github.com/vnmakarov/mir/blob/v1.0.0/GNUmakefile#L61>
@@ -32,7 +39,6 @@ fn main() {
         .flag("-mlong-double-64")
         .include("mir")
         .file("mir/mir.c")
-        .file("mir/mir-gen.c")
         .compile("mir");
 
     println!("cargo::rustc-link-lib=m");

@@ -11,6 +11,7 @@
 //! ### Construct a function and execute it via MIR interpreter
 //!
 //! ```
+//! # #[cfg(feature = "interp")] {
 //! use mir::{InsnBuilder, MirContext, Ty, Val};
 //!
 //! // Initialize a context.
@@ -37,12 +38,14 @@
 //! let mut ret = [Val::default()];
 //! unsafe { ctx.interpret_unchecked(func, &mut ret, &[Val::from(40i64), Val::from(2i64)]) };
 //! assert_eq!(ret[0].as_i64(), 42);
+//! # }
 //! ```
 //!
 //! ### Codegen a function to native code and execute it natively
 //!
 //! ```
-//! use mir::{InsnBuilder, MirContext, MirGenContext, Ty, Val};
+//! # #[cfg(feature = "gen")] {
+//! use mir::{InsnBuilder, MirContext, MirGenContext, Ty};
 //!
 //! // Initialize a context and codegen context.
 //! let ctx = MirGenContext::new(MirContext::new());
@@ -72,6 +75,7 @@
 //!
 //! // Call it!
 //! assert_eq!(func_ptr(40, 2), 42);
+//! # }
 //! ```
 //!
 //! ## Panics and errors
@@ -93,17 +97,26 @@ use std::ffi::{CStr, c_char, c_void};
 use std::marker::PhantomData;
 use std::ptr::{self, NonNull, null, null_mut};
 
-pub use codegen::MirGenContext;
 use mem_file::MemoryFile;
-pub use mir_sys as ffi;
 use types::InsnBuilderBase;
+
+pub use mir_sys as ffi;
 pub use types::{
     BssItemRef, DataItemRef, ExportItemRef, ExprDataItemRef, ForwardItemRef, FuncItemRef,
     ImportItemRef, InsnBuilder, IntoOperand, IntoOutOperand, ItemRef, Label, LabelRefDataItemRef,
-    MemOp, Operand, ProtoItemRef, RefDataItemRef, Reg, Ty, Val,
+    MemOp, Operand, ProtoItemRef, RefDataItemRef, Reg, Ty,
 };
 
+#[cfg(feature = "gen")]
 mod codegen;
+#[cfg(feature = "gen")]
+pub use codegen::MirGenContext;
+
+#[cfg(feature = "interp")]
+mod interp;
+#[cfg(feature = "interp")]
+pub use interp::Val;
+
 mod mem_file;
 mod types;
 
@@ -287,8 +300,9 @@ impl MirContext {
     ///
     /// # Safety
     ///
+    /// `set_interface` should be one of `MIR_set_*_interface`.
     /// `resolver` must return valid function pointers with prototype expected by generated code.
-    pub(crate) unsafe fn link_modules(
+    pub unsafe fn link_modules_raw(
         &self,
         set_interface: Option<
             unsafe extern "C-unwind" fn(ctx: ffi::MIR_context_t, item: ffi::MIR_item_t),
@@ -313,58 +327,6 @@ impl MirContext {
             None => (None, null_mut()),
         };
         unsafe { ffi::MIR_link(self.as_raw(), set_interface, resolver, arg) }
-    }
-
-    /// Link loaded modules and external names, preparing to be interpreted.
-    ///
-    /// # Panics
-    ///
-    /// Panic from C on unresolved names.
-    pub fn link_modules_for_interpret(&self) {
-        unsafe { self.link_modules(Some(ffi::MIR_set_interp_interface), None) }
-    }
-
-    /// Link loaded modules and external names with custom resolver, preparing to be interpreted.
-    ///
-    /// # Safety
-    ///
-    /// `resolver` must return valid function pointers with prototype expected by generated code,
-    /// or `NULL` if unresolved.
-    ///
-    /// # Panics
-    ///
-    /// Panic from C on unresolved names.
-    pub unsafe fn link_modules_for_interpret_with_resolver(&self, resolver: &ImportResolver) {
-        unsafe { self.link_modules(Some(ffi::MIR_set_interp_interface), Some(resolver)) }
-    }
-
-    /// Execute a function using the interpreter.
-    ///
-    /// # Safety
-    ///
-    /// The types and lengths of arguments and results must match the function signature.
-    ///
-    /// # Panics
-    ///
-    /// Panic from C on (detectable) interpretation errors.
-    pub unsafe fn interpret_unchecked(
-        &self,
-        func: FuncItemRef<'_>,
-        results: &mut [Val],
-        args: &[Val],
-    ) {
-        let data = unsafe { func.data() };
-        debug_assert_eq!(data.nres as usize, results.len());
-        debug_assert_eq!(data.nargs as usize, args.len());
-        unsafe {
-            ffi::MIR_interp_arr(
-                self.as_raw(),
-                func.as_raw(),
-                results.as_mut_ptr().cast::<ffi::MIR_val_t>(),
-                args.len(),
-                args.as_ptr().cast::<ffi::MIR_val_t>().cast_mut(),
-            );
-        }
     }
 }
 

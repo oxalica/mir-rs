@@ -13,10 +13,15 @@ documentation = "https://docs.rs/mir-sys"
 exclude = ["/mir/*-tests", "/mir/*-benchmarks"] # Keep the package small.
 
 [features]
-default = ["io", "scan"]
+default = ["io", "scan", "interp", "gen"]
 io = []
 scan = []
-__internal_generate_sys = ["dep:bindgen"]
+interp = []
+gen = []
+assert = []
+gen-debug = ["gen"]
+
+__internal_generate_sys = ["dep:bindgen", "io", "scan", "interp", "gen", "gen-debug"]
 
 [dependencies]
 libc = "0.2"

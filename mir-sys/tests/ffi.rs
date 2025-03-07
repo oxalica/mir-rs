@@ -1,6 +1,5 @@
 use std::ffi::CStr;
 
-use expect_test::expect;
 use mir_sys::*;
 
 #[test]
@@ -11,6 +10,7 @@ fn init() {
     }
 }
 
+#[cfg(any(feature = "interp", feature = "gen"))]
 fn collect_output<T>(func: impl FnOnce(*mut libc::FILE) -> T) -> (T, String) {
     unsafe {
         let (mut ptr, mut size) = (std::ptr::null_mut::<libc::c_char>(), 0usize);
@@ -64,6 +64,18 @@ unsafe fn gen_add_i64(ctx: MIR_context_t, func_name: &CStr) -> MIR_item_t {
 }
 
 #[test]
+fn add_ir() {
+    unsafe {
+        let ctx = MIR_init();
+        MIR_new_module(ctx, c"module".as_ptr());
+        gen_add_i64(ctx, c"add");
+        MIR_finish_module(ctx);
+        MIR_finish(ctx);
+    }
+}
+
+#[cfg(feature = "interp")]
+#[test]
 fn add_interp() {
     unsafe {
         let ctx = MIR_init();
@@ -74,7 +86,7 @@ fn add_interp() {
         let ((), repr) = collect_output(|fout| {
             MIR_output_module(ctx, fout, module);
         });
-        expect![[r#"
+        expect_test::expect![[r#"
             module:  module
             add:  func  i64, i64:a, i64:b
               local  i64:ret
@@ -94,6 +106,7 @@ fn add_interp() {
     }
 }
 
+#[cfg(feature = "gen")]
 #[test]
 fn add_gen() {
     unsafe {

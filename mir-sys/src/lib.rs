@@ -25,15 +25,17 @@
 #![expect(non_upper_case_globals, non_camel_case_types)]
 
 #[rustfmt::skip]
-#[expect(clippy::unreadable_literal)]
+#[allow(clippy::unreadable_literal)]
 mod bindings;
 
 #[rustfmt::skip]
-#[expect(clippy::wildcard_imports)]
+#[allow(clippy::wildcard_imports)]
+#[cfg(feature = "gen")]
 mod bindings_gen;
 
 pub use bindings::*;
 
+#[cfg(feature = "gen")]
 pub use bindings_gen::*;
 
 pub type MIR_op_mode_t_u8 = u8;

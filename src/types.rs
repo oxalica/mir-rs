@@ -8,64 +8,6 @@ use smallvec::SmallVec;
 
 use crate::{MemoryFile, MirContext, ffi};
 
-/// Untagged value for MIR interpreter.
-#[derive(Clone, Copy)]
-#[repr(transparent)]
-pub struct Val(pub(crate) ffi::MIR_val_t);
-
-impl Default for Val {
-    fn default() -> Self {
-        Self(unsafe { std::mem::zeroed::<ffi::MIR_val_t>() })
-    }
-}
-
-impl fmt::Debug for Val {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Val")
-            .field("i64", &self.as_i64())
-            .field("u64", &self.as_u64())
-            .field("f32", &self.as_f32())
-            .field("f64", &self.as_f64())
-            .finish()
-    }
-}
-
-macro_rules! impl_val_variant {
-    ($($name:ident: $ty:ident;)*) => {
-        $(
-            impl From<$ty> for Val {
-                #[inline]
-                fn from(v: $ty) -> Self {
-                    // Fully initialize it.
-                    let mut ret = Self::default();
-                    ret.0.$name = v;
-                    ret
-                }
-            }
-        )*
-        impl Val {
-            paste! {
-                $(
-                    /// Get the value as a
-                    #[doc = concat!("`", stringify!($ty), "`.")]
-                    #[must_use]
-                    #[inline]
-                    pub fn [<as_ $ty>](self) -> $ty {
-                        unsafe { self.0.$name }
-                    }
-                )*
-            }
-        }
-    };
-}
-
-impl_val_variant! {
-    i: i64;
-    u: u64;
-    f: f32;
-    d: f64;
-}
-
 /// Type of virtual registers.
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
@@ -308,6 +250,7 @@ def_item_ref_variant!(FuncItemRef, ffi::MIR_func_item, "function");
 impl FuncItemRef<'_> {
     /// # Safety
     /// The returned reference is invalidated if any MIR functions is called.
+    #[cfg(feature = "interp")]
     pub(crate) unsafe fn data(&self) -> &ffi::MIR_func {
         unsafe { &*self.0.0.as_ref().u.func }
     }

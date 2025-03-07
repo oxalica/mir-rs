@@ -1,14 +1,13 @@
-use std::cell::Cell;
-use std::ffi::{c_int, c_void};
+use std::ffi::c_void;
 use std::fmt;
 
-use crate::mem_file::MemoryFile;
 use crate::{FuncItemRef, ImportResolver, MirContext, ffi};
 
 /// The MIR context for native code generation.
 pub struct MirGenContext {
     ctx: MirContext,
-    debug_file: Cell<Option<MemoryFile>>,
+    #[cfg(feature = "gen-debug")]
+    debug_file: std::cell::Cell<Option<crate::mem_file::MemoryFile>>,
 }
 
 impl fmt::Debug for MirGenContext {
@@ -25,7 +24,8 @@ impl MirGenContext {
         unsafe { ffi::MIR_gen_init(ctx.ctx.as_ptr()) };
         Self {
             ctx,
-            debug_file: Cell::new(None),
+            #[cfg(feature = "gen-debug")]
+            debug_file: std::cell::Cell::new(None),
         }
     }
 
@@ -41,8 +41,9 @@ impl MirGenContext {
     /// Enable internal debug logging with specific level.
     ///
     /// Logs will be collected in memory and can be retrieved by [`Self::get_debug_output`].
-    pub fn enable_debug(&self, level: c_int) {
-        let file = MemoryFile::new();
+    #[cfg(feature = "gen-debug")]
+    pub fn enable_debug(&self, level: libc::c_int) {
+        let file = crate::mem_file::MemoryFile::new();
         unsafe {
             ffi::MIR_gen_set_debug_level(self.ctx.ctx.as_ptr(), level);
             ffi::MIR_gen_set_debug_file(self.ctx.ctx.as_ptr(), file.file());
@@ -58,6 +59,7 @@ impl MirGenContext {
     /// # Panics
     ///
     /// Panics if debug logging is not enabled before.
+    #[cfg(feature = "gen-debug")]
     pub fn get_debug_output(&self) -> String {
         let file = self.debug_file.take().expect("debug is not enabled");
         let s = file.get_data_string();
@@ -71,7 +73,7 @@ impl MirGenContext {
     ///
     /// Panic from C on unresolved names.
     pub fn link_modules_for_codegen(&self) {
-        unsafe { self.link_modules(Some(ffi::MIR_set_gen_interface), None) }
+        unsafe { self.link_modules_raw(Some(ffi::MIR_set_gen_interface), None) }
     }
 
     /// Link loaded modules and external names with custom resolver, preparing to be codegen.
@@ -85,7 +87,7 @@ impl MirGenContext {
     ///
     /// Panic from C on unresolved names.
     pub unsafe fn link_modules_for_codegen_with_resolver(&self, resolver: &ImportResolver) {
-        unsafe { self.link_modules(Some(ffi::MIR_set_gen_interface), Some(resolver)) }
+        unsafe { self.link_modules_raw(Some(ffi::MIR_set_gen_interface), Some(resolver)) }
     }
 
     /// Generate native code and return the function pointer to `func`.
@@ -99,9 +101,12 @@ impl MirGenContext {
 
 impl Drop for MirGenContext {
     fn drop(&mut self) {
-        if self.debug_file.get_mut().is_some() {
-            unsafe {
-                ffi::MIR_gen_set_debug_file(self.ctx.ctx.as_ptr(), std::ptr::null_mut());
+        #[cfg(feature = "gen-debug")]
+        {
+            if self.debug_file.get_mut().is_some() {
+                unsafe {
+                    ffi::MIR_gen_set_debug_file(self.ctx.ctx.as_ptr(), std::ptr::null_mut());
+                }
             }
         }
         unsafe { ffi::MIR_gen_finish(self.ctx.ctx.as_ptr()) };

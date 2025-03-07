@@ -9,6 +9,19 @@
 //! [mir]: https://github.com/vnmakarov/mir
 //! [mir-rs]: https://crates.io/crates/mir-rs
 //!
+//! ## Source
+//!
+//! The source code of mir C library is bundled in this package. Since upstream lacks some
+//! API/features that are necessary for Rust integration, we use a forked version of mir.
+//!
+// NB: Sync with submodule and build.rs.
+//! The fork can be seen at
+//! [this repo](https://github.com/oxalica/mir/tree/1.0.0-rust.x),
+//! and the current revision is based on upstream version
+//! [v1.0.0](https://github.com/vnmakarov/mir/releases/tag/v1.0.0).
+//!
+//! ⚠️ The API/ABI is **NOT** compatible with upstream mir library.
+//!
 //! ## Features
 //!
 //! ⚠️  Warning: Currently, due to [lack of support of `bindgen`][bindgen-fncfg-issue],

@@ -10,7 +10,7 @@ categories = ["compilers", "external-ffi-bindings"]
 license = "MIT"
 repository = "https://github.com/oxalica/mir-rs"
 documentation = "https://docs.rs/mir-sys"
-exclude = ["/mir/*-tests", "/mir/*-benchmarks"] # Keep the package small.
+include = ["build.rs", "src", "tests", "mir/*.h", "mir/*.c"]
 # NB: Sync with CI.
 rust-version = "1.85" # edition 2024
 

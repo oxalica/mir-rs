@@ -1,4 +1,4 @@
-// NB: Sync with git submodule.
+// NB: Sync with submodule and root docs.
 const GIT_COMMIT: &str = "e812cfb5d1325a19c532febe96bee2cdba217171";
 
 fn main() {

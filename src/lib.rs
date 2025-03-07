@@ -163,11 +163,12 @@ impl MirContext {
             unsafe { (*data.cast::<&ImportResolver>())(name) }
         }
 
-        let (resolver, arg) = match resolver {
+        // NB. Keep `resolver` alive on stack by taking a reference.
+        let (resolver, arg) = match &resolver {
             Some(resolver) => (
                 Some(trampoline as _),
-                // NB. Pointer to fat reference to dyn Fn.
-                ptr::from_ref(&resolver).cast_mut().cast(),
+                // NB. This is a pointer to fat reference to dyn Fn.
+                ptr::from_ref(resolver).cast_mut().cast(),
             ),
             None => (None, null_mut()),
         };

@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 //! # [MIR project][mir] bindings for Rust
 //!
 //! [mir]: https://github.com/vnmakarov/mir
@@ -90,6 +91,18 @@
 //! [c-unwind]: https://rust-lang.github.io/rfcs/2945-c-unwind-abi.html
 //! [pof]: https://rust-lang.github.io/rfcs/2945-c-unwind-abi.html#plain-old-frames
 //! [mir-error-issue]: https://github.com/vnmakarov/mir/issues/220
+//!
+//! ## Features
+//!
+//! - `default`: Implies `io`, `interp`, `gen`.
+//!
+//! - `io`: De/serialization of MIR memory representation into/from bytes.
+//!
+//! - `interp`: Enables MIR interpreter.
+//!
+//! - `gen`: MIR native code generator.
+//!
+//! - `gen-debug`: Debug logging in MIR native code generator. It implies `gen`.
 #![warn(missing_debug_implementations)]
 #![warn(missing_docs)]
 use std::cell::Cell;

@@ -10,6 +10,11 @@ repository = "https://github.com/oxalica/mir-rs"
 documentation = "https://docs.rs/mir-rs"
 exclude = ["/mir/*-tests", "/mir/*-benchmarks"] # Keep the package small.
 
+[package.metadata.docs.rs]
+all-features = true
+# Only 64-bit platforms.
+targets = ["x86_64-unknown-linux-gnu", "x86_64-apple-darwin", "x86_64-pc-windows-msvc"]
+
 [lib]
 name = "mir"
 
@@ -29,7 +34,8 @@ smallvec = "1"
 [build-dependencies]
 cc = "1"
 
-[workspace]
-
 [dev-dependencies]
 rstest = { version = "0.25.0", default-features = false }
+
+[workspace]
+

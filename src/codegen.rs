@@ -53,7 +53,7 @@ impl MirGenContext {
 
     /// Retrieve the debug logs collected so far.
     ///
-    /// Note: logs will not be cleared after the call. Memory can only be freed when destroyingthe
+    /// Note: logs will not be cleared after the call. Memory can only be freed after destroyed the
     /// context.
     ///
     /// # Panics

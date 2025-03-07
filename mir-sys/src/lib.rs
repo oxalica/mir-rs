@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 //! # [MIR project][mir] bindings for Rust
 //!
 //! This is the low-level binding that only exposes raw C types and functions,
@@ -9,17 +10,48 @@
 //! [mir-rs]: https://crates.io/crates/mir-rs
 //!
 //! ## Features
-//! ⚠️  Warning: Currently, due to [lack of support of `bindgen`][bindgen-fncfg-issue],
-//! extern functions are still generated even with corresponding feature disabled. Be careful to
-//! avoid using them when disabling features.
 //!
-//! - `io`: Enables de/serialization of MIR memory representation into/from bytes.
-//!   Guarded APIs: `MIR_write{,_module}{,_with_func},MIR_read{,_with_func}`.
+//! ⚠️  Warning: Currently, due to [lack of support of `bindgen`][bindgen-fncfg-issue],
+//! extern functions may still be generated even with corresponding feature disabled.
+//! Be careful to avoid using them when disabling features, or you may encounter link errors.
+//!
+//! - `default`: Implies `io`, `scan`, `interp`, `gen`.
+//!
+//! - `io`: De/serialization of MIR memory representation into/from bytes.
 //!   If disabled, C macro `MIR_NO_IO` is set for compilation.
 //!
-//! - `scan`: Enables parsing of MIR textual representation.
-//!   Guarded API: `MIR_scan_string`.
+//!   Guarded APIs:
+//!   - `MIR_write{,_module}{,_with_func}`
+//!   - `MIR_read{,_with_func}`
+//!
+//! - `scan`: Parsing of MIR textual representation.
 //!   If disabled, C macro `MIR_NO_SCAN` is set for compilation.
+//!
+//!   Guarded API:
+//!   - `MIR_scan_string`
+//!
+//! - `interp`: Enables MIR interpreter.
+//!   If disabled, C macro `MIR_NO_INTERP` is set for compilation.
+//!
+//!   Guarded APIs:
+//!   - `MIR_interp*`
+//!
+//! - `gen`: MIR native code generator.
+//!   If disabled, `mir-gen.c` will not be compiled.
+//!
+//!   Guarded APIs:
+//!   - `MIR_gen*`
+//!   - `MIR_set_*_gen_interface`
+//!
+//! - `gen-debug`: Debug logging in MIR native code generator. It implies `gen`.
+//!   If disabled, C macro `MIR_NO_GEN_DEBUG` is set for compilation.
+//!
+//!   Guarded APIs:
+//!   - `MIR_gen_set_debug_{file,level}`
+//!
+//! - `assert`: Debug assertions.
+//!   If disabled, C macro `NDEBUG` is set for compilation.
+//!   It is implicitly enabled when `debug_assertions` is on (eg. in dev profile).
 //!
 //! [bindgen-fncfg-issue]: https://github.com/rust-lang/rust-bindgen/issues/2978
 #![expect(non_upper_case_globals, non_camel_case_types)]

@@ -408,7 +408,7 @@ struct LabelRefDataItemData(ffi::MIR_lref_data);
 impl fmt::Debug for LabelRefDataItemData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let u = &self.0;
-        f.debug_struct("LableRefDataItemData")
+        f.debug_struct("LabelRefDataItemData")
             .field("name", &unsafe { CStr::from_ptr(u.name) })
             .field("disp", &u.disp)
             .field("load_addr", &u.load_addr)

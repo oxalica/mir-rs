@@ -1,10 +1,10 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-[[noreturn]]
+_Noreturn
 extern void MIRRS_error_handler_rust(unsigned error_type, const char *msg, size_t len);
 
-[[noreturn]]
+_Noreturn
 int MIRRS_error_handler_trampoline(unsigned error_type, const char *fmt, ...) {
     va_list args1;
     va_start(args1, fmt);

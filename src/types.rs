@@ -457,6 +457,31 @@ pub struct Operand<'a> {
     pub(crate) _marker: PhantomData<&'a ()>,
 }
 
+impl fmt::Debug for Operand<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut s = f.debug_struct("Operand");
+        unsafe {
+            match ffi::MIR_op_mode_t::from(self.op.mode) {
+                ffi::MIR_OP_REG => s.field("reg", &self.op.u.reg),
+                ffi::MIR_OP_VAR => s.field("var", &self.op.u.var),
+                ffi::MIR_OP_INT => s.field("int", &self.op.u.i),
+                ffi::MIR_OP_UINT => s.field("uint", &self.op.u.u),
+                ffi::MIR_OP_FLOAT => s.field("float", &self.op.u.f),
+                ffi::MIR_OP_DOUBLE => s.field("double", &self.op.u.d),
+                ffi::MIR_OP_REF => s.field("ref", &ItemRef::from_raw(self.op.u.ref_)),
+                ffi::MIR_OP_MEM => s.field("mem", &self.op.u.mem),
+                ffi::MIR_OP_LABEL => s.field("label", &..),
+                // Not implemented yet.
+                // ffi::MIR_OP_STR
+                // ffi::MIR_OP_VAR_MEM
+                // ffi::MIR_OP_BOUND
+                _ => return s.finish_non_exhaustive(),
+            }
+            .finish()
+        }
+    }
+}
+
 pub trait IntoOperand<'a>: Into<Operand<'a>> {}
 pub trait IntoOutOperand<'a>: IntoOperand<'a> {}
 

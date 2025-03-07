@@ -1,3 +1,4 @@
+#![warn(missing_debug_implementations)]
 use std::cell::Cell;
 use std::ffi::{CStr, c_char, c_void};
 use std::marker::PhantomData;
@@ -525,6 +526,7 @@ impl<'ctx> MirFuncBuilder<'_, 'ctx> {
     }
 }
 
+#[derive(Debug)]
 pub struct FuncInstBuilder<'func, 'ctx> {
     ctx: &'ctx MirContext,
     _marker: PhantomData<&'func MirFuncBuilder<'func, 'ctx>>,

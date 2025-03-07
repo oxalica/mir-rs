@@ -1,6 +1,6 @@
 [package]
 name = "mir-rs"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "FFI bindings to MIR Project (https://github.com/vnmakarov/mir)"
 keywords = ["bindings", "mir", "compiler", "jit"]
@@ -29,7 +29,7 @@ gen-debug = ["gen", "mir-sys/gen-debug"]
 
 [dependencies]
 libc = "0.2.75"
-mir-sys = { path = "./mir-sys", version = "0.1", default-features = false }
+mir-sys = { path = "./mir-sys", version = "0.2", default-features = false }
 paste = "1"
 smallvec = "1"
 

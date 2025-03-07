@@ -1,7 +1,7 @@
 use std::cell::Cell;
 use std::ffi::{CStr, c_char, c_void};
 use std::marker::PhantomData;
-use std::ptr::{NonNull, null, null_mut};
+use std::ptr::{self, NonNull, null, null_mut};
 
 pub use codegen::MirGenContext;
 use mem_file::MemoryFile;
@@ -47,6 +47,23 @@ unsafe extern "C-unwind" fn MIRRS_error_handler_rust(
     panic!("mir error {error_type}: {msg}");
 }
 
+unsafe extern "C-unwind" fn write_byte_callback(data: *mut libc::c_void, byte: u8) -> libc::c_int {
+    let data = unsafe { &mut *data.cast::<Vec<_>>() };
+    data.push(byte);
+    1
+}
+
+unsafe extern "C-unwind" fn read_byte_callback(data: *mut libc::c_void) -> libc::c_int {
+    let data = unsafe { &mut *data.cast::<&[u8]>() };
+    match data.split_first() {
+        Some((byte, rest)) => {
+            *data = rest;
+            *byte as _
+        }
+        None => libc::EOF,
+    }
+}
+
 type ImportResolver = dyn Fn(&CStr) -> *mut c_void;
 
 impl MirContext {
@@ -62,6 +79,36 @@ impl MirContext {
 
     pub fn as_raw(&self) -> *mut ffi::MIR_context {
         self.ctx.as_ptr()
+    }
+
+    pub fn serialize(&self) -> Vec<u8> {
+        let mut buf = Vec::new();
+        unsafe {
+            ffi::MIR_write_with_func(
+                self.as_raw(),
+                Some(write_byte_callback),
+                ptr::from_mut(&mut buf).cast(),
+            )
+        };
+        buf
+    }
+
+    /// # Safety
+    /// `bytes` must be trusted and produced from previous serialization.
+    pub unsafe fn deserialize(&self, bytes: &[u8]) {
+        assert!(
+            self.module.get().is_none(),
+            "must not have unfinished module on deserialization",
+        );
+
+        let mut bytes = bytes;
+        unsafe {
+            ffi::MIR_read_with_func(
+                self.as_raw(),
+                Some(read_byte_callback),
+                ptr::from_mut(&mut bytes).cast(),
+            );
+        }
     }
 
     pub fn enter_new_module(&self, name: &CStr) -> MirModuleBuilder<'_> {
@@ -103,7 +150,7 @@ impl MirContext {
             Some(resolver) => (
                 Some(trampoline as _),
                 // NB. Pointer to fat reference to dyn Fn.
-                std::ptr::from_ref(&resolver).cast_mut().cast(),
+                ptr::from_ref(&resolver).cast_mut().cast(),
             ),
             None => (None, null_mut()),
         };
@@ -176,6 +223,19 @@ impl MirModuleRef<'_> {
             ffi::MIR_output_module(ctx.as_raw(), file, self.as_raw())
         })
         .1
+    }
+
+    pub fn serialize(&self, ctx: &MirContext) -> Vec<u8> {
+        let mut buf = Vec::new();
+        unsafe {
+            ffi::MIR_write_module_with_func(
+                ctx.as_raw(),
+                Some(write_byte_callback),
+                self.as_raw(),
+                ptr::from_mut(&mut buf).cast(),
+            )
+        };
+        buf
     }
 }
 

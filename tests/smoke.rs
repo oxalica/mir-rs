@@ -51,6 +51,30 @@ fn add_gen() {
     assert_eq!(ret, 42);
 }
 
+#[test]
+fn add_serde() {
+    let (mod_bytes, ctx_bytes);
+    {
+        let ctx = MirContext::new();
+        let (module, _) = build_add_module(&ctx);
+        mod_bytes = module.serialize(&ctx);
+        ctx_bytes = ctx.serialize();
+    }
+
+    println!(
+        "module: {}B, context: {}B",
+        mod_bytes.len(),
+        ctx_bytes.len()
+    );
+    assert_eq!(mod_bytes, ctx_bytes);
+
+    {
+        let ctx = MirContext::new();
+        unsafe { ctx.deserialize(&mod_bytes) };
+        // TODO: Enumerate modules in context?
+    }
+}
+
 #[rstest]
 #[case::interp_static_link(true, false)]
 #[case::interp_dynamic_link(true, true)]

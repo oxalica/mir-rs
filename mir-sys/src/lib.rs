@@ -68,8 +68,6 @@ pub struct MIR_insn {
 #[allow(non_snake_case)]
 #[inline]
 pub fn MIR_init() -> MIR_context_t {
-    if !cfg!(feature = "bundled") || cfg!(debug_assertions) {
-        assert_eq!(MIR_API_VERSION, unsafe { _MIR_get_api_version() });
-    }
+    debug_assert_eq!(MIR_API_VERSION, unsafe { _MIR_get_api_version() });
     unsafe { _MIR_init() }
 }

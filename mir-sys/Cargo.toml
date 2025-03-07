@@ -13,8 +13,9 @@ documentation = "https://docs.rs/mir-sys"
 exclude = ["/mir/*-tests", "/mir/*-benchmarks"] # Keep the package small.
 
 [features]
-default = ["bundled"]
-bundled = []
+default = ["io", "scan"]
+io = []
+scan = []
 __internal_generate_sys = ["dep:bindgen"]
 
 [dependencies]

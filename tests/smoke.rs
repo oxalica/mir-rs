@@ -51,6 +51,7 @@ fn add_gen() {
     assert_eq!(ret, 42);
 }
 
+#[cfg(feature = "io")]
 #[test]
 fn add_serde() {
     let (dump, mod_bytes, ctx_bytes);

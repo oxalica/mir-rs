@@ -13,9 +13,13 @@ exclude = ["/mir/*-tests", "/mir/*-benchmarks"] # Keep the package small.
 [lib]
 name = "mir"
 
+[features]
+default = ["io"]
+io = ["mir-sys/io"]
+
 [dependencies]
 libc = "0.2.170"
-mir-sys = { path = "./mir-sys", version = "0.1" }
+mir-sys = { path = "./mir-sys", version = "0.1", default-features = false }
 paste = "1.0.15"
 smallvec = "1.14.0"
 

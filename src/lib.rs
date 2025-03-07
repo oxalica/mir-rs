@@ -47,12 +47,14 @@ unsafe extern "C-unwind" fn MIRRS_error_handler_rust(
     panic!("mir error {error_type}: {msg}");
 }
 
+#[cfg(feature = "io")]
 unsafe extern "C-unwind" fn write_byte_callback(data: *mut libc::c_void, byte: u8) -> libc::c_int {
     let data = unsafe { &mut *data.cast::<Vec<_>>() };
     data.push(byte);
     1
 }
 
+#[cfg(feature = "io")]
 unsafe extern "C-unwind" fn read_byte_callback(data: *mut libc::c_void) -> libc::c_int {
     let data = unsafe { &mut *data.cast::<&[u8]>() };
     match data.split_first() {
@@ -94,6 +96,7 @@ impl MirContext {
         .collect()
     }
 
+    #[cfg(feature = "io")]
     pub fn serialize(&self) -> Vec<u8> {
         let mut buf = Vec::new();
         unsafe {
@@ -108,6 +111,7 @@ impl MirContext {
 
     /// # Safety
     /// `bytes` must be trusted and produced from previous serialization.
+    #[cfg(feature = "io")]
     pub unsafe fn deserialize(&self, bytes: &[u8]) {
         assert!(
             self.module.get().is_none(),
@@ -258,6 +262,7 @@ impl MirModuleRef<'_> {
         .1
     }
 
+    #[cfg(feature = "io")]
     pub fn serialize(&self, ctx: &MirContext) -> Vec<u8> {
         let mut buf = Vec::new();
         unsafe {

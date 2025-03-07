@@ -6,14 +6,16 @@ const GIT_COMMIT: &str = "v1.0.0";
 fn main() {
     println!("cargo::rerun-if-changed=mir");
 
-    if !cfg!(feature = "bundled") {
-        todo!();
-    }
-
     let mut build = cc::Build::new();
 
     if env::var("DEBUG").unwrap() == "false" {
         build.define("NDEBUG", "1").define("MIR_NO_GEN_DEBUG", "1");
+    }
+    if !cfg!(feature = "io") {
+        build.define("MIR_NO_IO", "1");
+    }
+    if !cfg!(feature = "scan") {
+        build.define("MIR_NO_SCAN", "1");
     }
 
     // See: <https://github.com/vnmakarov/mir/blob/v1.0.0/GNUmakefile#L61>

@@ -1,3 +1,27 @@
+//! # [MIR project][mir] bindings for Rust
+//!
+//! This is the low-level binding that only exposes raw C types and functions,
+//! and handles compilation and linking of C code.
+//!
+//! See [`mir-rs`][mir-rs] crate for high-level ergonomic APIs.
+//!
+//! [mir]: https://github.com/vnmakarov/mir
+//! [mir-rs]: https://crates.io/crates/mir-rs
+//!
+//! ## Features
+//! ⚠️  Warning: Currently, due to [lack of support of `bindgen`][bindgen-fncfg-issue],
+//! extern functions are still generated even with corresponding feature disabled. Be careful to
+//! avoid using them when disabling features.
+//!
+//! - `io`: Enables de/serialization of MIR memory representation into/from bytes.
+//!   Guarded APIs: `MIR_write{,_module}{,_with_func},MIR_read{,_with_func}`.
+//!   If disabled, C macro `MIR_NO_IO` is set for compilation.
+//!
+//! - `scan`: Enables parsing of MIR textual representation.
+//!   Guarded API: `MIR_scan_string`.
+//!   If disabled, C macro `MIR_NO_SCAN` is set for compilation.
+//!
+//! [bindgen-fncfg-issue]: https://github.com/rust-lang/rust-bindgen/issues/2978
 #![expect(non_upper_case_globals, non_camel_case_types)]
 
 #[rustfmt::skip]

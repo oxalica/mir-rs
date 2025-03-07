@@ -8,6 +8,7 @@ use smallvec::SmallVec;
 
 use crate::{MemoryFile, MirContext, ffi};
 
+/// Untagged value for MIR interpreter.
 #[derive(Clone, Copy)]
 #[repr(transparent)]
 pub struct Val(pub(crate) ffi::MIR_val_t);
@@ -33,15 +34,22 @@ macro_rules! impl_val_variant {
     ($($name:ident: $ty:ident;)*) => {
         $(
             impl From<$ty> for Val {
-                fn from($name: $ty) -> Self {
-                    Val(ffi::MIR_val_t { $name })
+                #[inline]
+                fn from(v: $ty) -> Self {
+                    // Fully initialize it.
+                    let mut ret = Self::default();
+                    ret.0.$name = v;
+                    ret
                 }
             }
         )*
         impl Val {
             paste! {
                 $(
+                    /// Get the value as a
+                    #[doc = concat!("`", stringify!($ty), "`.")]
                     #[must_use]
+                    #[inline]
                     pub fn [<as_ $ty>](self) -> $ty {
                         unsafe { self.0.$name }
                     }
@@ -58,6 +66,7 @@ impl_val_variant! {
     d: f64;
 }
 
+/// Type of virtual registers.
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct Ty(pub(crate) ffi::MIR_type_t);
@@ -65,7 +74,10 @@ pub struct Ty(pub(crate) ffi::MIR_type_t);
 macro_rules! impl_ty_variants {
     ($($var:ident),* $(,)?) => {
         impl Ty {
-            $(pub const $var: Self = Self(paste!(ffi::[<MIR_T_ $var>]));)*
+            $(
+                #[doc = concat!("`MIR_T_", stringify!($var), "`")]
+                pub const $var: Self = Self(paste!(ffi::[<MIR_T_ $var>]));
+            )*
         }
 
         impl fmt::Debug for Ty {
@@ -92,10 +104,12 @@ fn ty_debug() {
     assert_eq!(format!("{:?}", Ty(99)), "Ty(99)");
 }
 
+/// Virtual register identifier.
 #[derive(Debug, Clone, Copy)]
 #[repr(transparent)]
 pub struct Reg(pub(crate) ffi::MIR_reg_t);
 
+/// Item type.
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct ItemType(pub(crate) ffi::MIR_item_type_t);
@@ -103,7 +117,10 @@ pub struct ItemType(pub(crate) ffi::MIR_item_type_t);
 macro_rules! impl_item_type_variants {
     ($($var:ident),* $(,)?) => {
         impl ItemType {
-            $(pub const $var: Self = Self(paste!(ffi::[<MIR_ $var:lower _item>]));)*
+            $(
+                #[doc = paste!(concat!("`MIR_", stringify!([<$var:lower>]), "_item"))]
+                pub const $var: Self = Self(paste!(ffi::[<MIR_ $var:lower _item>]));
+            )*
         }
 
         impl fmt::Debug for ItemType {
@@ -125,6 +142,7 @@ impl_item_type_variants! {
     BSS,
 }
 
+/// Reference to an item.
 #[derive(Clone, Copy)]
 #[repr(transparent)]
 pub struct ItemRef<'a>(
@@ -138,21 +156,26 @@ impl ItemRef<'_> {
         Self(raw, PhantomData)
     }
 
+    /// Get the underlying pointer for FFI.
     #[must_use]
     pub fn as_raw(&self) -> *mut ffi::MIR_item {
         self.0.as_ptr()
     }
 
+    /// Dump the content of the context in a textual representation for human consumption.
+    #[must_use]
     pub fn dump(&self, ctx: &MirContext) -> String {
         MemoryFile::with(|file| unsafe { ffi::MIR_output_item(ctx.as_raw(), file, self.as_raw()) })
             .1
     }
 
+    /// Get the item type.
     #[must_use]
     pub fn type_(&self) -> ItemType {
         unsafe { ItemType(self.0.as_ref().item_type) }
     }
 
+    /// Get the name of the item.
     #[must_use]
     pub fn name(&self) -> Option<&CStr> {
         let item = unsafe { self.0.as_ref() };
@@ -232,6 +255,7 @@ impl fmt::Debug for ItemRef<'_> {
     }
 }
 
+/// Item downcast failure.
 #[derive(Debug, Clone)]
 pub struct ItemRefDowncastError(());
 
@@ -244,7 +268,10 @@ impl fmt::Display for ItemRefDowncastError {
 impl std::error::Error for ItemRefDowncastError {}
 
 macro_rules! def_item_ref_variant {
-    ($name:ident, $item_type:expr) => {
+    ($name:ident, $item_type:expr, $doc:literal) => {
+        /// Reference to a
+        #[doc = $doc]
+        /// item.
         #[derive(Debug, Clone, Copy)]
         #[repr(transparent)]
         pub struct $name<'a>(pub(crate) ItemRef<'a>);
@@ -276,7 +303,7 @@ macro_rules! def_item_ref_variant {
     };
 }
 
-def_item_ref_variant!(FuncItemRef, ffi::MIR_func_item);
+def_item_ref_variant!(FuncItemRef, ffi::MIR_func_item, "function");
 
 impl FuncItemRef<'_> {
     /// # Safety
@@ -339,7 +366,7 @@ impl fmt::Debug for DebugVars {
     }
 }
 
-def_item_ref_variant!(ProtoItemRef, ffi::MIR_proto_item);
+def_item_ref_variant!(ProtoItemRef, ffi::MIR_proto_item, "prototype");
 
 #[repr(transparent)]
 struct ProtoItemData(ffi::MIR_proto);
@@ -357,9 +384,9 @@ impl fmt::Debug for ProtoItemData {
     }
 }
 
-def_item_ref_variant!(ImportItemRef, ffi::MIR_import_item);
-def_item_ref_variant!(ExportItemRef, ffi::MIR_export_item);
-def_item_ref_variant!(ForwardItemRef, ffi::MIR_forward_item);
+def_item_ref_variant!(ImportItemRef, ffi::MIR_import_item, "import");
+def_item_ref_variant!(ExportItemRef, ffi::MIR_export_item, "export");
+def_item_ref_variant!(ForwardItemRef, ffi::MIR_forward_item, "forward declaration");
 
 struct DebugImportLikeItemData(&'static str, &'static str, *const c_char);
 
@@ -371,7 +398,7 @@ impl fmt::Debug for DebugImportLikeItemData {
     }
 }
 
-def_item_ref_variant!(DataItemRef, ffi::MIR_data_item);
+def_item_ref_variant!(DataItemRef, ffi::MIR_data_item, "data");
 
 #[repr(transparent)]
 struct DataItemData(ffi::MIR_data);
@@ -387,7 +414,7 @@ impl fmt::Debug for DataItemData {
     }
 }
 
-def_item_ref_variant!(RefDataItemRef, ffi::MIR_ref_data_item);
+def_item_ref_variant!(RefDataItemRef, ffi::MIR_ref_data_item, "referential data");
 
 #[repr(transparent)]
 struct RefDataItemData(ffi::MIR_ref_data);
@@ -404,7 +431,7 @@ impl fmt::Debug for RefDataItemData {
     }
 }
 
-def_item_ref_variant!(LabelRefDataItemRef, ffi::MIR_lref_data_item);
+def_item_ref_variant!(LabelRefDataItemRef, ffi::MIR_lref_data_item, "label data");
 
 #[repr(transparent)]
 struct LabelRefDataItemData(ffi::MIR_lref_data);
@@ -420,7 +447,7 @@ impl fmt::Debug for LabelRefDataItemData {
     }
 }
 
-def_item_ref_variant!(ExprDataItemRef, ffi::MIR_expr_data_item);
+def_item_ref_variant!(ExprDataItemRef, ffi::MIR_expr_data_item, "computed data");
 
 #[repr(transparent)]
 struct ExprDataItemData(ffi::MIR_expr_data);
@@ -435,7 +462,7 @@ impl fmt::Debug for ExprDataItemData {
     }
 }
 
-def_item_ref_variant!(BssItemRef, ffi::MIR_bss_item);
+def_item_ref_variant!(BssItemRef, ffi::MIR_bss_item, "writable memory segment");
 
 #[repr(transparent)]
 struct BssItemData(ffi::MIR_bss);
@@ -450,6 +477,7 @@ impl fmt::Debug for BssItemData {
     }
 }
 
+/// Operand of instructions.
 #[derive(Clone, Copy)]
 #[repr(transparent)]
 pub struct Operand<'a> {
@@ -482,7 +510,10 @@ impl fmt::Debug for Operand<'_> {
     }
 }
 
+/// Convertible to [`Operand`].
 pub trait IntoOperand<'a>: Into<Operand<'a>> {}
+
+/// Convertible to [`Operand`], but can only be used in destination place.
 pub trait IntoOutOperand<'a>: IntoOperand<'a> {}
 
 impl<'a, T> IntoOperand<'a> for T where Operand<'a>: From<T> {}
@@ -497,12 +528,10 @@ impl From<Reg> for Operand<'_> {
     }
 }
 
+/// Label identifier.
 #[derive(Debug, Clone, Copy)]
 #[repr(transparent)]
-pub struct Label<'func>(
-    pub(crate) ffi::MIR_label_t,
-    pub(crate) PhantomData<&'func ()>,
-);
+pub struct Label<'a>(pub(crate) ffi::MIR_label_t, pub(crate) PhantomData<&'a ()>);
 
 impl<'a> From<Label<'a>> for Operand<'a> {
     fn from(label: Label<'a>) -> Self {
@@ -513,6 +542,10 @@ impl<'a> From<Label<'a>> for Operand<'a> {
     }
 }
 
+/// Memory operand.
+///
+/// It represents the data located at address `(disp + base_reg + index_reg * scale)`,
+/// where `disp` is a constant and `scale` is either 1, 2, 4 or 8.
 #[derive(Debug, Clone, Copy)]
 pub struct MemOp {
     ty: Ty,
@@ -523,6 +556,7 @@ pub struct MemOp {
 }
 
 impl MemOp {
+    /// Create a new memory operand with type `ty`, based on register `base`.
     #[must_use]
     pub fn new_base(ty: Ty, base: Reg) -> Self {
         Self {
@@ -530,20 +564,27 @@ impl MemOp {
             disp: 0,
             base,
             index: Reg(0),
-            scale: 0,
+            scale: 1,
         }
     }
 
+    /// Set the displacement and return updated operand.
     #[must_use]
     pub fn disp(self, disp: i64) -> Self {
         Self { disp, ..self }
     }
 
+    /// Set the index register and return updated operand.
     #[must_use]
     pub fn index(self, index: Reg) -> Self {
         Self { index, ..self }
     }
 
+    /// Set the scale and return updated operand.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `scale` is not 1, 2, 4 or 8.
     #[must_use]
     pub fn scale(self, scale: u8) -> Self {
         assert!(matches!(scale, 1 | 2 | 4 | 8), "scale must be 1, 2, 4 or 8");
@@ -654,19 +695,41 @@ macro_rules! def_call_insn {
     };
 }
 
+/// !! Not a public API !!
+///
 /// # Safety
-/// TODO
+/// `get_raw_ctx` must return a valid MIR context.
+#[doc(hidden)]
 pub unsafe trait InsnBuilderBase<'func>: Sized {
     fn get_raw_ctx(&self) -> ffi::MIR_context_t;
     /// # Safety
-    /// TODO
+    /// `insn` must be a valid instruction that is not inserted anywhere.
     unsafe fn insert(self, insn: ffi::MIR_insn_t);
 }
 
 impl<'func, T: InsnBuilderBase<'func>> InsnBuilder<'func> for T {}
 
-// Mostly follows the order in mir.h.
+/// The instruction builder.
+///
+/// See detail instruction semantics in [MIR documentation][upstream-docs].
+///
+/// [upstream-docs]: https://github.com/vnmakarov/mir/blob/v1.0.0/MIR.md#mir-insns
+///
+/// # Example
+///
+/// ```
+/// # fn codegen(f: &mir::MirFuncBuilder<'_, '_>, [sum, a, b]: [mir::Reg; 3]) {
+/// use mir::InsnBuilder as _;
+/// // let f: &MirFuncBuilder<'_, '_>;
+/// // let a, b, c: Reg;
+/// f.ins().add(sum, a, b);
+/// f.ins().ret(sum);
+/// # }
+/// ```
+#[allow(missing_docs)]
 pub trait InsnBuilder<'func>: InsnBuilderBase<'func> {
+    // Mostly follows the order in mir.h.
+
     // Unary ops.
     def_simple_insn! {
         (dst, src);
@@ -742,9 +805,11 @@ pub trait InsnBuilder<'func>: InsnBuilderBase<'func> {
     }
 
     // Label.
+    /// Bind (insert) a previously unbound label to the current location.
     fn label(self, label: Label<'_>) {
         unsafe { self.insert(label.0) };
     }
+    /// Create a new label on the current location (immediately insert).
     fn new_label(self) -> Label<'func> {
         let insn = unsafe { ffi::MIR_new_label(self.get_raw_ctx()) };
         unsafe { self.insert(insn) };

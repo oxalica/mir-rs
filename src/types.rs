@@ -104,7 +104,7 @@ impl ItemRef<'_> {
         self.0.as_ptr()
     }
 
-    /// Dump the content of the context in a textual representation for human consumption.
+    /// Dump the content in a textual representation for human consumption.
     #[must_use]
     pub fn dump(&self, ctx: &MirContext) -> String {
         MemoryFile::with(|file| unsafe { ffi::MIR_output_item(ctx.as_raw(), file, self.as_raw()) })

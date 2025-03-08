@@ -1,0 +1,12 @@
+[files]
+extend-exclude = ["mir-sys/mir"]
+
+[default.extend-words]
+# Instructions.
+addos = "addos"
+ands = "ands"
+dne = "dne"
+fle = "fle"
+
+# "property set"
+prset = "prset"

@@ -207,7 +207,7 @@ impl MirContext {
         self.ctx.as_ptr()
     }
 
-    /// Dump the content of the context in a textual representation for human consumption.
+    /// Dump the content in a textual representation for human consumption.
     #[must_use]
     pub fn dump(&self) -> String {
         MemoryFile::with(|file| unsafe { ffi::MIR_output(self.as_raw(), file) }).1
@@ -244,7 +244,7 @@ impl MirContext {
 
     /// Deserialize context or modules from bytes.
     ///
-    /// It will create one or more modules in `bytes`. The deserialized modules will be as ifthey
+    /// It will create one or more modules in `bytes`. The deserialized modules will be as if they
     /// are created manually, not loaded or linked yet.
     ///
     /// # Safety
@@ -398,7 +398,7 @@ impl MirModuleRef<'_> {
         .collect()
     }
 
-    /// Dump the content of the context in a textual representation for human consumption.
+    /// Dump the content in a textual representation for human consumption.
     #[must_use]
     pub fn dump(&self, ctx: &MirContext) -> String {
         MemoryFile::with(|file| unsafe {

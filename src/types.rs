@@ -51,7 +51,7 @@ fn ty_debug() {
 #[repr(transparent)]
 pub struct Reg(pub(crate) ffi::MIR_reg_t);
 
-/// Item type.
+/// Type of items.
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct ItemType(pub(crate) ffi::MIR_item_type_t);
@@ -60,7 +60,7 @@ macro_rules! impl_item_type_variants {
     ($($var:ident),* $(,)?) => {
         impl ItemType {
             $(
-                #[doc = paste!(concat!("`MIR_", stringify!([<$var:lower>]), "_item"))]
+                #[doc = paste!(concat!("`MIR_", stringify!([<$var:lower>]), "_item`"))]
                 pub const $var: Self = Self(paste!(ffi::[<MIR_ $var:lower _item>]));
             )*
         }

@@ -116,8 +116,8 @@ use types::InsnBuilderBase;
 pub use mir_sys as ffi;
 pub use types::{
     BssItemRef, DataItemRef, ExportItemRef, ExprDataItemRef, ForwardItemRef, FuncItemRef,
-    ImportItemRef, InsnBuilder, IntoOperand, IntoOutOperand, ItemRef, Label, LabelRefDataItemRef,
-    MemOp, Operand, ProtoItemRef, RefDataItemRef, Reg, Ty,
+    ImportItemRef, InsnBuilder, IntoOperand, IntoOutOperand, ItemRef, ItemType, Label,
+    LabelRefDataItemRef, MemOp, Operand, ProtoItemRef, RefDataItemRef, Reg, Ty,
 };
 
 #[cfg(feature = "gen")]

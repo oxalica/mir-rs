@@ -643,14 +643,14 @@ macro_rules! def_call_insn {
 /// # Safety
 /// `get_raw_ctx` must return a valid MIR context.
 #[doc(hidden)]
-pub unsafe trait InsnBuilderBase<'func>: Sized {
+pub unsafe trait InsnBuilderBase<'module>: Sized {
     fn get_raw_ctx(&self) -> ffi::MIR_context_t;
     /// # Safety
     /// `insn` must be a valid instruction that is not inserted anywhere.
     unsafe fn insert(self, insn: ffi::MIR_insn_t);
 }
 
-impl<'func, T: InsnBuilderBase<'func>> InsnBuilder<'func> for T {}
+impl<'module, T: InsnBuilderBase<'module>> InsnBuilder<'module> for T {}
 
 /// The instruction builder.
 ///
@@ -670,7 +670,7 @@ impl<'func, T: InsnBuilderBase<'func>> InsnBuilder<'func> for T {}
 /// # }
 /// ```
 #[allow(missing_docs)]
-pub trait InsnBuilder<'func>: InsnBuilderBase<'func> {
+pub trait InsnBuilder<'module>: InsnBuilderBase<'module> {
     // Mostly follows the order in mir.h.
 
     // Unary ops.
@@ -753,15 +753,15 @@ pub trait InsnBuilder<'func>: InsnBuilderBase<'func> {
         unsafe { self.insert(label.0) };
     }
     /// Create a new label on the current location (immediately insert).
-    fn new_label(self) -> Label<'func> {
+    fn new_label(self) -> Label<'module> {
         let insn = unsafe { ffi::MIR_new_label(self.get_raw_ctx()) };
         unsafe { self.insert(insn) };
         Label(insn, PhantomData)
     }
 }
 
-fn build_insn<'func, 'o>(
-    this: impl InsnBuilderBase<'func>,
+fn build_insn<'module, 'o>(
+    this: impl InsnBuilderBase<'module>,
     code: mir_sys::MIR_insn_code_t,
     ops: impl IntoIterator<Item = Operand<'o>>,
 ) {

@@ -133,6 +133,9 @@ pub use interp::Val;
 mod mem_file;
 mod types;
 
+#[cfg(any(test, doctest))]
+mod tests;
+
 /// The context for code generation, linking and interpreter.
 ///
 /// Almost all MIR functionality requires an initialized context to work.
@@ -271,7 +274,7 @@ impl MirContext {
         }
     }
 
-    /// Create a new module and enter into it.
+    /// Create a new module and enter it.
     ///
     /// The MIR context is stateful. When entering a new module, it should be correctly finished
     /// before creating another module. See [`MirModuleBuilder`] for more details.
@@ -605,13 +608,13 @@ impl<'ctx> MirModuleBuilder<'ctx> {
     ///
     /// Panic from C on duplicated names.
     #[must_use]
-    pub fn add_label_ref_data(
-        &self,
+    pub fn add_label_ref_data<'module>(
+        &'module self,
         name: &CStr,
-        label: Label<'_>,
-        base_label: Option<Label<'_>>,
+        label: Label<'module>,
+        base_label: Option<Label<'module>>,
         disp: i64,
-    ) -> LabelRefDataItemRef<'_> {
+    ) -> LabelRefDataItemRef<'module> {
         unsafe {
             LabelRefDataItemRef(ItemRef::from_raw(ffi::MIR_new_lref_data(
                 self.as_raw_ctx(),
@@ -650,12 +653,12 @@ impl<'ctx> MirModuleBuilder<'ctx> {
     /// Panic if there is any unfinished function.
     /// Panic from C on duplicated names or invalid signature.
     #[must_use]
-    pub fn enter_new_function(
-        &'_ self,
+    pub fn enter_new_function<'module>(
+        &'module self,
         name: &CStr,
         rets: &[Ty],
         args: &[(&CStr, Ty)],
-    ) -> MirFuncBuilder<'_, 'ctx> {
+    ) -> MirFuncBuilder<'module, 'ctx> {
         assert!(
             self.ctx.func_item.get().is_none(),
             "already inside a function"
@@ -714,7 +717,7 @@ impl Drop for MirFuncBuilder<'_, '_> {
     }
 }
 
-impl<'ctx> MirFuncBuilder<'_, 'ctx> {
+impl<'module, 'ctx> MirFuncBuilder<'module, 'ctx> {
     /// Explicitly finish the function and return the function reference.
     ///
     /// # Panics
@@ -754,13 +757,13 @@ impl<'ctx> MirFuncBuilder<'_, 'ctx> {
     ///
     /// The label must be inserted later via [`InsnBuilder::label`].
     #[must_use]
-    pub fn new_label(&self) -> Label<'_> {
+    pub fn new_label(&self) -> Label<'module> {
         let insn = unsafe { ffi::MIR_new_label(self.ctx.ctx.as_ptr()) };
         Label(insn, PhantomData)
     }
 
     /// Append a new instruction to the function.
-    pub fn ins(&self) -> FuncInstBuilder<'_, 'ctx> {
+    pub fn ins(&self) -> FuncInstBuilder<'module, 'ctx> {
         FuncInstBuilder {
             ctx: self.ctx,
             _marker: PhantomData,

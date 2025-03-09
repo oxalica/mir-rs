@@ -3,6 +3,6 @@ fn main() {
 
     cc::Build::new()
         .std("c11")
-        .file("./trampoline.c")
-        .compile("trampoline");
+        .file("./mirrs_trampoline.c")
+        .compile("mirrs_trampoline");
 }

@@ -8,6 +8,57 @@ use smallvec::SmallVec;
 
 use crate::{MemoryFile, MirContext, ffi};
 
+/// Type of a (fatal) error from C.
+#[repr(transparent)]
+pub(crate) struct ErrorType(pub(crate) ffi::MIR_error_type);
+
+macro_rules! impl_error_type_variants {
+    ($($var:ident),* $(,)?) => {
+        impl fmt::Display for ErrorType {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                match self.0 {
+                    $(paste!(ffi:: [<MIR_ $var _error>]) => concat!("MIR_", stringify!($var), "_error"),)*
+                    raw => return raw.fmt(f),
+                }
+                .fmt(f)
+            }
+        }
+    };
+}
+
+impl_error_type_variants! {
+    no,
+    syntax,
+    binary_io,
+    alloc,
+    finish,
+    no_module,
+    nested_module,
+    no_func,
+    func,
+    vararg_func,
+    nested_func,
+    wrong_param_value,
+    hard_reg,
+    reserved_name,
+    import_export,
+    undeclared_func_reg,
+    repeated_decl,
+    reg_type,
+    wrong_type,
+    unique_reg,
+    undeclared_op_ref,
+    ops_num,
+    call_op,
+    unspec_op,
+    wrong_lref,
+    ret,
+    op_mode,
+    out_op,
+    invalid_insn,
+    ctx_change,
+}
+
 /// Type of virtual registers.
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]

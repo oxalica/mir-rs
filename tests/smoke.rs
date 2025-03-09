@@ -17,6 +17,15 @@ fn init() {
     let _ctx = MirContext::new();
 }
 
+#[test]
+#[should_panic = "mir error (MIR_undeclared_func_reg_error): undeclared func reg non_existing"]
+fn panic_msg() {
+    let ctx = MirContext::new();
+    let mb = ctx.enter_new_module(c"m");
+    let fb = mb.enter_new_function(c"f", &[], &[]);
+    let _reg = fb.get_reg(c"non_existing");
+}
+
 fn build_add(ctx: &MirContext) -> (MirModuleRef<'_>, FuncItemRef<'_>) {
     let mb = ctx.enter_new_module(c"add_module");
     let fb = mb.enter_new_function(c"add", &[Ty::I64], &[(c"a", Ty::I64), (c"b", Ty::I64)]);

@@ -111,7 +111,7 @@ use std::marker::PhantomData;
 use std::ptr::{self, NonNull, null, null_mut};
 
 use mem_file::MemoryFile;
-use types::InsnBuilderBase;
+use types::{ErrorType, InsnBuilderBase};
 
 pub use mir_sys as ffi;
 pub use types::{
@@ -168,7 +168,7 @@ unsafe extern "C-unwind" fn MIRRS_error_handler_rust(
     len: usize,
 ) -> ! {
     let msg = String::from_utf8_lossy(unsafe { std::slice::from_raw_parts(msg, len) });
-    panic!("mir error {error_type}: {msg}");
+    panic!("mir error ({}): {}", ErrorType(error_type), msg);
 }
 
 #[cfg(feature = "io")]

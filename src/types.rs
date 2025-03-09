@@ -301,7 +301,6 @@ def_item_ref_variant!(FuncItemRef, ffi::MIR_func_item, "function");
 impl FuncItemRef<'_> {
     /// # Safety
     /// The returned reference is invalidated if any MIR functions is called.
-    #[cfg(feature = "interp")]
     pub(crate) unsafe fn data(&self) -> &ffi::MIR_func {
         unsafe { &*self.0.0.as_ref().u.func }
     }

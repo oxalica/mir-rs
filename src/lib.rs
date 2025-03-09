@@ -143,8 +143,8 @@ mod tests;
 #[derive(Debug)]
 pub struct MirContext {
     ctx: NonNull<ffi::MIR_context>,
-    module: Cell<Option<NonNull<ffi::MIR_module>>>,
-    func_item: Cell<Option<NonNull<ffi::MIR_item>>>,
+    in_module: Cell<bool>,
+    in_func: Cell<bool>,
 }
 
 impl Default for MirContext {
@@ -200,8 +200,8 @@ impl MirContext {
         unsafe { ffi::MIR_set_error_func(ctx, Some(MIRRS_error_handler_trampoline)) };
         Self {
             ctx: NonNull::new(ctx).expect("context must not be NULL"),
-            module: Cell::new(None),
-            func_item: Cell::new(None),
+            in_module: Cell::new(false),
+            in_func: Cell::new(false),
         }
     }
 
@@ -260,7 +260,7 @@ impl MirContext {
     #[cfg(feature = "io")]
     pub unsafe fn deserialize(&self, bytes: &[u8]) {
         assert!(
-            self.module.get().is_none(),
+            !self.in_module.get(),
             "must not have unfinished module on deserialization",
         );
 
@@ -283,11 +283,11 @@ impl MirContext {
     ///
     /// Panic if there is any unfinished module.
     pub fn enter_new_module(&self, name: &CStr) -> MirModuleBuilder<'_> {
-        assert!(self.module.get().is_none(), "already inside a module");
-        let module = unsafe { ffi::MIR_new_module(self.as_raw(), name.as_ptr()) };
-        self.module
-            .set(Some(NonNull::new(module).expect("module must not be null")));
-        MirModuleBuilder { ctx: self }
+        assert!(!self.in_module.get(), "already inside a module");
+        let module =
+            unsafe { MirModuleRef::from_raw(ffi::MIR_new_module(self.as_raw(), name.as_ptr())) };
+        self.in_module.set(true);
+        MirModuleBuilder { module, ctx: self }
     }
 
     /// Load an MIR module for linking.
@@ -353,10 +353,10 @@ impl Drop for MirContext {
             return;
         }
 
-        if self.func_item.get().is_some() {
+        if self.in_func.get() {
             unsafe { ffi::MIR_finish_func(self.as_raw()) };
         }
-        if self.module.get().is_some() {
+        if self.in_module.get() {
             unsafe { ffi::MIR_finish_module(self.as_raw()) };
         }
         unsafe { ffi::MIR_finish(self.as_raw()) };
@@ -438,12 +438,14 @@ impl MirModuleRef<'_> {
 #[derive(Debug)]
 #[must_use = "module builder should be correctly finished by finish()"]
 pub struct MirModuleBuilder<'ctx> {
+    module: MirModuleRef<'ctx>,
     ctx: &'ctx MirContext,
 }
 
 impl Drop for MirModuleBuilder<'_> {
     fn drop(&mut self) {
-        self.ctx.module.take().expect("must be inside a module");
+        let prev = self.ctx.in_module.replace(false);
+        debug_assert!(prev, "must be inside a module");
         unsafe { ffi::MIR_finish_module(self.as_raw_ctx()) };
     }
 }
@@ -456,9 +458,8 @@ impl<'ctx> MirModuleBuilder<'ctx> {
     /// Panic from C if the module content is malformed.
     #[expect(clippy::must_use_candidate, reason = "can be ignored")]
     pub fn finish(self) -> MirModuleRef<'ctx> {
-        let module = self.ctx.module.get().expect("must be inside a module");
-        drop(self);
-        unsafe { MirModuleRef::from_raw(module.as_ptr()) }
+        self.module
+        // Implicit `drop(self)`.
     }
 
     fn as_raw_ctx(&self) -> *mut ffi::MIR_context {
@@ -659,10 +660,7 @@ impl<'ctx> MirModuleBuilder<'ctx> {
         rets: &[Ty],
         args: &[(&CStr, Ty)],
     ) -> MirFuncBuilder<'module, 'ctx> {
-        assert!(
-            self.ctx.func_item.get().is_none(),
-            "already inside a function"
-        );
+        assert!(!self.ctx.in_func.get(), "already inside a function");
         let c_args = args
             .iter()
             .map(|(name, ty)| ffi::MIR_var {
@@ -672,7 +670,7 @@ impl<'ctx> MirModuleBuilder<'ctx> {
                 size: 0,
             })
             .collect::<Vec<_>>();
-        let func_item = unsafe {
+        let func = unsafe {
             ffi::MIR_new_func_arr(
                 self.as_raw_ctx(),
                 name.as_ptr(),
@@ -682,12 +680,9 @@ impl<'ctx> MirModuleBuilder<'ctx> {
                 c_args.as_ptr().cast_mut(),
             )
         };
-        self.ctx.func_item.set(Some(
-            NonNull::new(func_item).expect("item must not be null"),
-        ));
-        let func = unsafe { NonNull::new((*func_item).u.func).expect("function must not be null") };
+        self.ctx.in_func.set(true);
         MirFuncBuilder {
-            func,
+            func: unsafe { FuncItemRef(ItemRef::from_raw(func)) },
             ctx: self.ctx,
             _marker: PhantomData,
         }
@@ -702,17 +697,15 @@ impl<'ctx> MirModuleBuilder<'ctx> {
 /// [`MirFuncBuilder`] will automatically finish it on drop.
 #[derive(Debug)]
 pub struct MirFuncBuilder<'module, 'ctx> {
-    func: NonNull<ffi::MIR_func>,
+    func: FuncItemRef<'ctx>,
     ctx: &'ctx MirContext,
     _marker: PhantomData<&'module MirModuleRef<'ctx>>,
 }
 
 impl Drop for MirFuncBuilder<'_, '_> {
     fn drop(&mut self) {
-        self.ctx
-            .func_item
-            .take()
-            .expect("must be inside a function");
+        let prev = self.ctx.in_func.replace(false);
+        debug_assert!(prev, "must be inside a function");
         unsafe { ffi::MIR_finish_func(self.ctx.ctx.as_ptr()) };
     }
 }
@@ -725,9 +718,8 @@ impl<'module, 'ctx> MirFuncBuilder<'module, 'ctx> {
     /// Panic from C if the function content is malformed.
     #[expect(clippy::must_use_candidate, reason = "can be ignored")]
     pub fn finish(self) -> FuncItemRef<'ctx> {
-        let func_item = self.ctx.func_item.get().expect("must be inside a function");
-        drop(self);
-        FuncItemRef(ItemRef(func_item, PhantomData))
+        self.func
+        // Implicit `drop(self)`.
     }
 
     /// Get the virtual register or given name.
@@ -735,7 +727,13 @@ impl<'module, 'ctx> MirFuncBuilder<'module, 'ctx> {
     /// Function parameters are represented as pre-defined virtual registers of same names.
     #[must_use]
     pub fn get_reg(&self, name: &CStr) -> Reg {
-        let reg = unsafe { ffi::MIR_reg(self.ctx.ctx.as_ptr(), name.as_ptr(), self.func.as_ptr()) };
+        let reg = unsafe {
+            ffi::MIR_reg(
+                self.ctx.ctx.as_ptr(),
+                name.as_ptr(),
+                ptr::from_ref(self.func.data()).cast_mut(),
+            )
+        };
         Reg(reg)
     }
 
@@ -745,7 +743,7 @@ impl<'module, 'ctx> MirFuncBuilder<'module, 'ctx> {
         let reg = unsafe {
             ffi::MIR_new_func_reg(
                 self.ctx.ctx.as_ptr(),
-                self.func.as_ptr(),
+                ptr::from_ref(self.func.data()).cast_mut(),
                 ty.0,
                 name.as_ptr(),
             )
@@ -763,41 +761,26 @@ impl<'module, 'ctx> MirFuncBuilder<'module, 'ctx> {
     }
 
     /// Append a new instruction to the function.
-    pub fn ins(&self) -> FuncInstBuilder<'module, 'ctx> {
-        FuncInstBuilder {
-            ctx: self.ctx,
-            _marker: PhantomData,
-        }
+    ///
+    /// See [`InsnBuilder`] for all instructions available.
+    #[must_use = "ins() does nothing unless chaining a method call"]
+    pub fn ins<'func>(&'func self) -> impl InsnBuilder<'module> + use<'func, 'module, 'ctx> {
+        FuncInsnBuilder { func_builder: self }
     }
 }
 
 /// The instruction appender to an function.
-///
-/// See [`InsnBuilder`] for all instructions.
 #[derive(Debug)]
-#[must_use = "FuncInstBuilder does nothing unless calling an method"]
-pub struct FuncInstBuilder<'func, 'ctx> {
-    ctx: &'ctx MirContext,
-    _marker: PhantomData<&'func MirFuncBuilder<'func, 'ctx>>,
+struct FuncInsnBuilder<'func, 'module, 'ctx> {
+    func_builder: &'func MirFuncBuilder<'module, 'ctx>,
 }
 
-unsafe impl<'func> InsnBuilderBase<'func> for FuncInstBuilder<'func, '_> {
+unsafe impl<'module> InsnBuilderBase<'module> for FuncInsnBuilder<'_, 'module, '_> {
     fn get_raw_ctx(&self) -> ffi::MIR_context_t {
-        self.ctx.ctx.as_ptr()
+        self.func_builder.ctx.as_raw()
     }
 
     unsafe fn insert(self, insn: ffi::MIR_insn_t) {
-        unsafe {
-            ffi::MIR_append_insn(
-                self.ctx.as_raw(),
-                self.ctx
-                    .func_item
-                    .get()
-                    .expect("must be inside a function")
-                    .as_ptr()
-                    .cast::<ffi::MIR_item>(),
-                insn,
-            );
-        }
+        unsafe { ffi::MIR_append_insn(self.get_raw_ctx(), self.func_builder.func.as_raw(), insn) };
     }
 }
